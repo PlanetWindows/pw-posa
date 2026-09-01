@@ -11,6 +11,71 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="styles.css?v=20260901-checklist1" />
+  <style>
+    /* Fix dialog: scroll interno + testi mai tagliati */
+    dialog.dialog {
+      max-height: calc(100dvh - 32px) !important;
+      overflow-y: auto !important;
+      overflow-x: hidden !important;
+      overscroll-behavior: contain;
+      scrollbar-gutter: stable;
+    }
+    dialog.dialog[open] {
+      display: block;
+    }
+    dialog.dialog form {
+      min-width: 0;
+      width: 100%;
+    }
+    dialog.dialog .dialog-head {
+      position: sticky;
+      top: 0;
+      z-index: 3;
+    }
+    dialog.dialog .dialog-actions {
+      position: sticky;
+      bottom: 0;
+      z-index: 3;
+      box-shadow: 0 -8px 18px rgba(33,29,30,.05);
+    }
+    dialog.dialog .grid2,
+    dialog.dialog .detail-grid,
+    dialog.dialog .installer-actions,
+    dialog.dialog .action-card,
+    dialog.dialog label {
+      min-width: 0;
+    }
+    dialog.dialog input,
+    dialog.dialog select,
+    dialog.dialog textarea {
+      min-width: 0;
+      max-width: 100%;
+    }
+    dialog.dialog .dialog-title-wrap,
+    dialog.dialog .detail-card,
+    dialog.dialog .detail-card .v,
+    dialog.dialog .action-card,
+    dialog.dialog .action-card p,
+    dialog.dialog .action-card span {
+      overflow-wrap: anywhere !important;
+      word-break: break-word !important;
+      white-space: normal !important;
+    }
+    @media (max-width: 900px) {
+      dialog.dialog {
+        width: calc(100vw - 20px) !important;
+        max-width: calc(100vw - 20px) !important;
+        max-height: calc(100dvh - 20px) !important;
+        margin: auto;
+      }
+      dialog.dialog .grid2 {
+        grid-template-columns: 1fr !important;
+      }
+      dialog.dialog .span2 {
+        grid-column: auto !important;
+      }
+    }
+  </style>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
