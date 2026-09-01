@@ -5,21 +5,41 @@
   }
 
   const sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
-
   const $ = (id) => document.getElementById(id);
-  const state = { session:null, profile:null, teams:[], poses:[], view:null };
+  const state = {
+    session:null,
+    profile:null,
+    teams:[],
+    poses:[],
+    view:null,
+    selectedPose:null,
+    calendarCursor:new Date(new Date().getFullYear(), new Date().getMonth(), 1)
+  };
 
   function toast(msg) {
-    const el = $("toast"); el.textContent = msg; el.classList.add("show");
+    const el = $("toast");
+    el.textContent = msg;
+    el.classList.add("show");
     setTimeout(() => el.classList.remove("show"), 2400);
   }
-  function esc(v){ return String(v ?? "").replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[s])); }
+
+  function esc(v){
+    return String(v ?? "").replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[s]));
+  }
   function fmtDate(v){ if(!v) return "—"; const [y,m,d]=v.split("-"); return `${d}/${m}/${y}`; }
   function fmtTime(v){ return v ? String(v).slice(0,5) : "—"; }
   function roleName(role){
     return role === "office_scheduler" ? "Ufficio · Calendario" :
            role === "office_viewer" ? "Ufficio · Lettura" :
            role === "installer" ? "Posatore" : role || "Utente";
+  }
+  function isScheduler(){ return state.profile?.role === "office_scheduler"; }
+  function isOffice(){ return ["office_scheduler","office_viewer"].includes(state.profile?.role); }
+  function isoLocal(d){
+    const y=d.getFullYear();
+    const m=String(d.getMonth()+1).padStart(2,"0");
+    const day=String(d.getDate()).padStart(2,"0");
+    return `${y}-${m}-${day}`;
   }
 
   async function signIn(email,password){
@@ -29,81 +49,106 @@
     await loadProfile();
     await bootApp();
   }
+
   async function loadProfile(){
     const uid = state.session?.user?.id;
     const { data, error } = await sb.from("profiles").select("*").eq("id", uid).single();
     if(error) throw new Error("Profilo utente non disponibile: " + error.message);
     state.profile = data;
   }
+
   async function bootApp(){
     $("loginView").classList.add("hidden");
     $("appView").classList.remove("hidden");
     $("userEmail").textContent = state.session.user.email;
     $("roleLabel").textContent = roleName(state.profile.role);
 
-    const office = ["office_scheduler","office_viewer"].includes(state.profile.role);
-    $("officeNav").classList.toggle("hidden", !office);
-    $("installerNav").classList.toggle("hidden", office);
-    $("newPoseBtn").classList.toggle("hidden", state.profile.role !== "office_scheduler");
+    $("officeNav").classList.toggle("hidden", !isOffice());
+    $("installerNav").classList.toggle("hidden", isOffice());
+    $("newPoseBtn").classList.toggle("hidden", !isScheduler());
 
-    if(office){
-      await loadTeams();
-      state.view = "calendar";
-      await renderCalendar();
-    }else{
-      state.view = "myposes";
-      await renderMyPoses();
-    }
+    if(isOffice()) await loadTeams();
+    state.view = "calendar";
+    await renderCalendar();
   }
+
   async function loadTeams(){
     const { data, error } = await sb.from("teams").select("*").eq("active", true).order("name");
     if(error) throw error;
     state.teams = data || [];
   }
+
   async function loadPoses(){
     const { data, error } = await sb.from("poses").select("*").order("scheduled_date").order("start_time");
     if(error) throw error;
     state.poses = data || [];
   }
 
+  function monthMatrix(cursor){
+    const first = new Date(cursor.getFullYear(), cursor.getMonth(), 1);
+    const last = new Date(cursor.getFullYear(), cursor.getMonth()+1, 0);
+    const mondayIndex = (first.getDay()+6)%7;
+    const gridStart = new Date(first);
+    gridStart.setDate(first.getDate()-mondayIndex);
+    const sundayIndex = (last.getDay()+6)%7;
+    const tail = 6-sundayIndex;
+    const gridEnd = new Date(last);
+    gridEnd.setDate(last.getDate()+tail);
+    const days=[];
+    const cur=new Date(gridStart);
+    while(cur<=gridEnd){ days.push(new Date(cur)); cur.setDate(cur.getDate()+1); }
+    return days;
+  }
+
   async function renderCalendar(){
     $("pageTitle").textContent = "Calendario";
     await loadPoses();
+    if(isOffice() && !state.teams.length) await loadTeams();
 
-    const today = new Date();
-    const monday = new Date(today);
-    const day = (today.getDay()+6)%7;
-    monday.setDate(today.getDate()-day);
-    monday.setHours(0,0,0,0);
+    const cursor = state.calendarCursor;
+    const monthTitle = cursor.toLocaleDateString("it-IT", {month:"long", year:"numeric"});
+    const days = monthMatrix(cursor);
+    const byDate = state.poses.reduce((a,p)=>((a[p.scheduled_date] ||= []).push(p),a),{});
+    const todayIso = isoLocal(new Date());
 
-    const days = Array.from({length:14},(_,i)=>{const d=new Date(monday);d.setDate(monday.getDate()+i);return d;});
-    const byDate = Object.groupBy ? Object.groupBy(state.poses, p=>p.scheduled_date) :
-      state.poses.reduce((a,p)=>((a[p.scheduled_date] ||= []).push(p),a),{});
-
+    const weekdayHeader = ["Lun","Mar","Mer","Gio","Ven","Sab","Dom"].map(x=>`<div class="calendar-weekday">${x}</div>`).join("");
     const cells = days.map(d=>{
-      const iso = d.toISOString().slice(0,10);
+      const iso = isoLocal(d);
+      const outside = d.getMonth() !== cursor.getMonth();
+      const today = iso === todayIso;
       const items = (byDate[iso]||[]).map(p=>`
-        <div class="pose-chip" data-pose="${esc(p.id)}">
-          <strong>${esc(fmtTime(p.start_time))} · ${esc(p.client_name)}</strong>
-          <span>${esc(p.job_number)} · ${esc(p.city || p.address)}</span>
-        </div>`).join("");
-      return `<div class="calendar-day">
-        <div class="date">${d.toLocaleDateString("it-IT",{weekday:"short",day:"2-digit",month:"2-digit"})}</div>
-        ${items || '<div class="muted">Nessuna posa</div>'}
+        <button type="button" class="pose-chip" data-pose="${esc(p.id)}">
+          <strong>${esc(fmtTime(p.start_time))} · ${esc(p.job_number)}</strong>
+          <span>${esc(p.client_name)}</span>
+        </button>`).join("");
+      return `<div class="calendar-day${outside ? " outside-month" : ""}${today ? " today" : ""}">
+        <div class="date"><span>${d.getDate()}</span></div>
+        <div class="calendar-day-poses">${items || '<span class="calendar-empty">—</span>'}</div>
       </div>`;
     }).join("");
 
     $("content").innerHTML = `
-      <div class="stats">
-        <div class="stat"><span class="muted">Pose visibili</span><strong>${state.poses.length}</strong></div>
-        <div class="stat"><span class="muted">Oggi</span><strong>${state.poses.filter(p=>p.scheduled_date===new Date().toISOString().slice(0,10)).length}</strong></div>
-        <div class="stat"><span class="muted">Squadre</span><strong>${state.teams.length}</strong></div>
-        <div class="stat"><span class="muted">Ruolo</span><strong style="font-size:18px">${esc(roleName(state.profile.role))}</strong></div>
+      <div class="calendar-toolbar">
+        <div>
+          <div class="eyebrow">PROGRAMMAZIONE</div>
+          <h3>${esc(monthTitle.charAt(0).toUpperCase()+monthTitle.slice(1))}</h3>
+        </div>
+        <div class="calendar-controls">
+          <button type="button" class="btn ghost" id="calendarPrev" aria-label="Mese precedente">←</button>
+          <button type="button" class="btn ghost" id="calendarToday">Oggi</button>
+          <button type="button" class="btn ghost" id="calendarNext" aria-label="Mese successivo">→</button>
+        </div>
       </div>
-      <div class="panel">
-        <div class="panel-head"><h3>Programmazione · 2 settimane</h3><span class="muted">Clicca una posa per aprirla</span></div>
-        <div class="table-wrap" style="padding:14px"><div class="calendar-grid">${cells}</div></div>
+      <div class="panel calendar-panel">
+        <div class="calendar-month-wrap">
+          <div class="calendar-weekdays">${weekdayHeader}</div>
+          <div class="calendar-grid month-grid">${cells}</div>
+        </div>
       </div>`;
+
+    $("calendarPrev").addEventListener("click",()=>{ state.calendarCursor = new Date(cursor.getFullYear(), cursor.getMonth()-1, 1); renderCalendar(); });
+    $("calendarNext").addEventListener("click",()=>{ state.calendarCursor = new Date(cursor.getFullYear(), cursor.getMonth()+1, 1); renderCalendar(); });
+    $("calendarToday").addEventListener("click",()=>{ const now=new Date(); state.calendarCursor = new Date(now.getFullYear(),now.getMonth(),1); renderCalendar(); });
     bindPoseOpeners();
   }
 
@@ -120,7 +165,7 @@
 
   async function renderMyPoses(){
     $("pageTitle").textContent = "Le mie pose";
-    await loadPoses(); // RLS mostra solo le pose accessibili all'utente
+    await loadPoses();
     $("content").innerHTML = `<div class="panel">
       <div class="panel-head"><h3>Pose assegnate alla mia squadra</h3><span class="badge orange">${state.poses.length}</span></div>
       <div class="table-wrap"><table><thead><tr><th>Data</th><th>Ora</th><th>Commessa</th><th>Cliente</th><th>Indirizzo</th><th>Telefono</th></tr></thead>
@@ -163,7 +208,9 @@
       if(error) return toast(error.message);
       p = data;
     }
+    state.selectedPose = p;
     $("detailTitle").textContent = `${p.job_number} · ${p.client_name}`;
+    $("editPoseBtn").classList.toggle("hidden", !isScheduler());
     $("detailContent").innerHTML = `
       <div class="detail-grid">
         ${detail("Cliente",p.client_name)}
@@ -175,28 +222,65 @@
       </div>
       ${state.profile.role==="installer" ? `
       <div class="installer-actions">
-        <div class="action-card"><strong>Foto</strong><p class="muted">Caricamento foto prima, durante e dopo: attivabile nel prossimo step.</p></div>
-        <div class="action-card"><strong>Note posa</strong><p class="muted">Compilazione avanzamento e note operative: prossimo step.</p></div>
-        <div class="action-card"><strong>Problemi</strong><p class="muted">Segnalazione danni o pezzi mancanti: prossimo step.</p></div>
+        <div class="action-card"><strong>Foto posa</strong><p class="muted">Il caricamento foto non è ancora implementato nel frontend attuale.</p></div>
+        <div class="action-card"><strong>Note posa</strong><p class="muted">La compilazione operativa richiede ancora il collegamento ai campi della tabella pose_execution.</p></div>
+        <div class="action-card"><strong>Problemi</strong><p class="muted">Le segnalazioni sono presenti nel database, ma il form di inserimento non è ancora implementato qui.</p></div>
       </div>` : ""}
     `;
     $("detailDialog").showModal();
   }
-  function detail(k,v){return `<div class="detail-card"><div class="k">${esc(k)}</div><div class="v">${esc(v)}</div></div>`}
+
+  function detail(k,v){
+    return `<div class="detail-card"><div class="k">${esc(k)}</div><div class="v">${esc(v)}</div></div>`;
+  }
+
+  async function populatePoseForm(p=null){
+    if(!isScheduler()) return;
+    if(!state.teams.length) await loadTeams();
+    $("teamId").innerHTML=state.teams.map(t=>`<option value="${esc(t.id)}">${esc(t.name)}</option>`).join("");
+
+    if(!p){
+      $("poseForm").reset();
+      $("poseId").value="";
+      $("poseDialogTitle").textContent="Nuova posa";
+      $("scheduledDate").value=isoLocal(new Date());
+      $("startTime").value="08:00";
+      if(state.teams[0]) $("teamId").value=state.teams[0].id;
+      return;
+    }
+
+    $("poseId").value=p.id;
+    $("poseDialogTitle").textContent=`Modifica posa ${p.job_number}`;
+    $("jobNumber").value=p.job_number||"";
+    $("clientName").value=p.client_name||"";
+    $("clientPhone").value=p.client_phone||"";
+    $("address").value=p.address||"";
+    $("city").value=p.city||"";
+    $("postalCode").value=p.postal_code||"";
+    $("scheduledDate").value=p.scheduled_date||"";
+    $("startTime").value=fmtTime(p.start_time)==="—" ? "" : fmtTime(p.start_time);
+    $("endTime").value=fmtTime(p.end_time)==="—" ? "" : fmtTime(p.end_time);
+    $("teamId").value=p.team_id||"";
+    $("officeNotes").value=p.office_notes||"";
+  }
 
   async function openNewPose(){
-    if(state.profile.role!=="office_scheduler") return;
-    await loadTeams();
-    $("poseForm").reset(); $("poseId").value="";
-    $("poseDialogTitle").textContent="Nuova posa";
-    $("teamId").innerHTML=state.teams.map(t=>`<option value="${esc(t.id)}">${esc(t.name)}</option>`).join("");
-    $("scheduledDate").value=new Date().toISOString().slice(0,10);
-    $("startTime").value="08:00";
+    if(!isScheduler()) return;
+    await populatePoseForm(null);
+    $("poseDialog").showModal();
+  }
+
+  async function openEditPose(){
+    if(!isScheduler() || !state.selectedPose) return;
+    const p=state.selectedPose;
+    $("detailDialog").close();
+    await populatePoseForm(p);
     $("poseDialog").showModal();
   }
 
   async function savePose(e){
     e.preventDefault();
+    if(!isScheduler()) return;
     const payload={
       job_number:$("jobNumber").value.trim(),
       client_name:$("clientName").value.trim(),
@@ -220,14 +304,25 @@
       ({error}=await sb.from("poses").insert(payload));
     }
     if(error){ toast(error.message); return; }
-    $("poseDialog").close(); toast("Posa salvata");
-    if(state.view==="calendar") await renderCalendar(); else await renderPoses();
+    $("poseDialog").close();
+    toast(id ? "Posa aggiornata" : "Posa salvata");
+    state.selectedPose=null;
+    await loadPoses();
+    if(state.view==="calendar") await renderCalendar();
+    else if(state.view==="poses") await renderPoses();
+    else if(state.view==="myposes") await renderMyPoses();
+  }
+
+  async function logout(){
+    await sb.auth.signOut();
+    location.reload();
   }
 
   document.addEventListener("click", async (e)=>{
     const nav=e.target.closest(".nav-item");
     if(nav){
-      document.querySelectorAll(".nav-item").forEach(x=>x.classList.remove("active")); nav.classList.add("active");
+      document.querySelectorAll(".nav-item").forEach(x=>x.classList.remove("active"));
+      nav.classList.add("active");
       state.view=nav.dataset.view;
       try{
         if(state.view==="calendar") await renderCalendar();
@@ -235,17 +330,20 @@
         else if(state.view==="myposes") await renderMyPoses();
         else if(state.view==="teams") await renderTeams();
         else if(state.view==="issues") await renderIssues();
-      }catch(err){toast(err.message)}
+      }catch(err){ toast(err.message); }
     }
   });
 
   $("loginForm").addEventListener("submit", async e=>{
-    e.preventDefault(); $("loginError").textContent="";
+    e.preventDefault();
+    $("loginError").textContent="";
     try{ await signIn($("email").value.trim(),$("password").value); }
     catch(err){ $("loginError").textContent=err.message; }
   });
-  $("logoutBtn").addEventListener("click",async()=>{ await sb.auth.signOut(); location.reload(); });
+  $("logoutBtn").addEventListener("click",logout);
+  $("topLogoutBtn").addEventListener("click",logout);
   $("newPoseBtn").addEventListener("click",openNewPose);
+  $("editPoseBtn").addEventListener("click",openEditPose);
   $("poseForm").addEventListener("submit",savePose);
   $("closePoseDialog").addEventListener("click",()=>$("poseDialog").close());
   $("cancelPoseBtn").addEventListener("click",()=>$("poseDialog").close());
@@ -255,7 +353,8 @@
     const {data}=await sb.auth.getSession();
     if(data.session){
       state.session=data.session;
-      try{await loadProfile();await bootApp();}catch(err){console.error(err);await sb.auth.signOut();}
+      try{ await loadProfile(); await bootApp(); }
+      catch(err){ console.error(err); await sb.auth.signOut(); }
     }
   })();
 })();
