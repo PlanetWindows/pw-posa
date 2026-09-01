@@ -41,6 +41,21 @@
     const day=String(d.getDate()).padStart(2,"0");
     return `${y}-${m}-${day}`;
   }
+  function parseLocalDate(iso){
+    const [y,m,d]=String(iso).split("-").map(Number);
+    return new Date(y,m-1,d,12,0,0,0);
+  }
+  function checklistReadyDate(p){
+    const d=parseLocalDate(p.scheduled_date);
+    const daysBack=d.getDay()===1 ? 3 : 2;
+    d.setDate(d.getDate()-daysBack);
+    return d;
+  }
+  function checklistIsAvailable(p){
+    const today=new Date(); today.setHours(0,0,0,0);
+    const ready=checklistReadyDate(p); ready.setHours(0,0,0,0);
+    return today>=ready;
+  }
 
   async function signIn(email,password){
     const { data, error } = await sb.auth.signInWithPassword({email,password});
@@ -157,8 +172,8 @@
     await loadPoses();
     $("content").innerHTML = `<div class="panel">
       <div class="panel-head"><h3>Elenco pose</h3><span>${state.poses.length} pose</span></div>
-      <div class="table-wrap"><table><thead><tr><th>Data</th><th>Ora</th><th>Commessa</th><th>Cliente</th><th>Indirizzo</th></tr></thead>
-      <tbody>${state.poses.map(p=>`<tr class="clickable" data-pose="${esc(p.id)}"><td>${fmtDate(p.scheduled_date)}</td><td>${fmtTime(p.start_time)}</td><td>${esc(p.job_number)}</td><td>${esc(p.client_name)}</td><td>${esc(p.address)}</td></tr>`).join("")}</tbody>
+      <div class="table-wrap"><table><thead><tr><th>Data</th><th>Ora</th><th>Commessa</th><th>Cliente</th><th>Indirizzo</th><th>Finanziamento</th></tr></thead>
+      <tbody>${state.poses.map(p=>`<tr class="clickable" data-pose="${esc(p.id)}"><td>${fmtDate(p.scheduled_date)}</td><td>${fmtTime(p.start_time)}</td><td>${esc(p.job_number)}</td><td>${esc(p.client_name)}</td><td>${esc(p.address)}</td><td>${p.financing ? "Sì" : "No"}</td></tr>`).join("")}</tbody>
       </table></div></div>`;
     bindPoseOpeners();
   }
@@ -201,6 +216,72 @@
     document.querySelectorAll("[data-pose]").forEach(el=>el.addEventListener("click",()=>openPoseDetail(el.dataset.pose)));
   }
 
+  async function loadChecklist(poseId){
+    const {data,error}=await sb.from("pose_checklists").select("*").eq("pose_id",poseId).maybeSingle();
+    if(error) throw error;
+    return data;
+  }
+
+  async function saveChecklist(p, root){
+    const val=(name)=>!!root.querySelector(`[data-check="${name}"]`)?.checked;
+    const payload={
+      pose_id:p.id,
+      van_loaded:val("van_loaded"),
+      delivery_report:val("delivery_report"),
+      tax_deduction_form:p.financing ? val("tax_deduction_form") : false,
+      ddt:val("ddt"),
+      client_area_cleaning:val("client_area_cleaning"),
+      updated_by:state.session.user.id,
+      updated_at:new Date().toISOString()
+    };
+    const {error}=await sb.from("pose_checklists").upsert(payload,{onConflict:"pose_id"});
+    if(error) throw error;
+    toast("Checklist aggiornata");
+  }
+
+  async function renderChecklistSection(p){
+    const root=$("checklistSection");
+    if(!root) return;
+    const ready=checklistReadyDate(p);
+    if(!checklistIsAvailable(p)){
+      root.innerHTML=`<div class="action-card"><strong>Checklist preparazione</strong><p class="muted">Disponibile dal ${fmtDate(isoLocal(ready))}${ready.getDay()===5 ? " (venerdì precedente)" : ""}.</p></div>`;
+      return;
+    }
+    try{
+      const c=await loadChecklist(p.id) || {};
+      const item=(field,label)=>`<label style="display:flex;flex-direction:row;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);font-size:13px;font-weight:600"><input data-check="${field}" type="checkbox" style="width:auto;margin-top:2px" ${c[field] ? "checked" : ""}><span>${label}</span></label>`;
+      root.innerHTML=`
+        <div class="action-card" style="background:#fff">
+          <strong>Checklist preparazione</strong>
+          <p class="muted">Attiva da ${fmtDate(isoLocal(ready))}. Le modifiche vengono salvate automaticamente.</p>
+          ${item("van_loaded","Caricare il furgone")}
+          ${item("delivery_report","Emettere verbale di consegna")}
+          ${p.financing ? item("tax_deduction_form","Modulo detrazioni fiscali (Banca Sella)") : ""}
+          ${item("ddt","DDT")}
+          ${item("client_area_cleaning","Ricordare al cliente di pulire la zona di posa")}
+        </div>`;
+      root.querySelectorAll("[data-check]").forEach(ch=>ch.addEventListener("change",async()=>{
+        try{ await saveChecklist(p,root); }
+        catch(err){ toast(err.message); }
+      }));
+    }catch(err){
+      root.innerHTML=`<div class="action-card"><strong>Checklist preparazione</strong><p class="muted">${esc(err.message)}</p></div>`;
+    }
+  }
+
+  async function renderPhotoSummary(p){
+    const root=$("photoSection");
+    if(!root) return;
+    const {data,error}=await sb.from("pose_photos").select("phase").eq("pose_id",p.id);
+    if(error){ root.innerHTML=`<div class="action-card"><strong>Foto posa</strong><p class="muted">${esc(error.message)}</p></div>`; return; }
+    const phases=(data||[]).map(x=>String(x.phase||"").toLowerCase());
+    const count=(names)=>phases.filter(x=>names.includes(x)).length;
+    root.innerHTML=`
+      <div class="action-card"><strong>Prima della posa</strong><p class="muted">${count(["before","prima","pre","pre_pose"])} foto presenti</p></div>
+      <div class="action-card"><strong>Durante la posa</strong><p class="muted">${count(["during","durante","work","in_progress"])} foto presenti</p></div>
+      <div class="action-card"><strong>Dopo la posa</strong><p class="muted">${count(["after","dopo","post","post_pose"])} foto presenti</p></div>`;
+  }
+
   async function openPoseDetail(id){
     let p = state.poses.find(x=>x.id===id);
     if(!p){
@@ -218,16 +299,20 @@
         ${detail("Indirizzo",`${p.address}${p.city ? ", "+p.city : ""}${p.postal_code ? " "+p.postal_code : ""}`)}
         ${detail("Data / Ora",`${fmtDate(p.scheduled_date)} · ${fmtTime(p.start_time)}${p.end_time ? "–"+fmtTime(p.end_time):""}`)}
         ${detail("Commessa",p.job_number)}
+        ${detail("Finanziamento",p.financing ? "Sì" : "No")}
         ${detail("Note ufficio",p.office_notes||"—")}
       </div>
+      <div style="padding:0 24px 24px"><div id="checklistSection"></div></div>
+      <div id="photoSection" class="installer-actions"></div>
       ${state.profile.role==="installer" ? `
       <div class="installer-actions">
-        <div class="action-card"><strong>Foto posa</strong><p class="muted">Il caricamento foto non è ancora implementato nel frontend attuale.</p></div>
-        <div class="action-card"><strong>Note posa</strong><p class="muted">La compilazione operativa richiede ancora il collegamento ai campi della tabella pose_execution.</p></div>
-        <div class="action-card"><strong>Problemi</strong><p class="muted">Le segnalazioni sono presenti nel database, ma il form di inserimento non è ancora implementato qui.</p></div>
+        <div class="action-card"><strong>Note posa</strong><p class="muted">La compilazione operativa verrà collegata alla tabella pose_execution nel prossimo passaggio.</p></div>
+        <div class="action-card"><strong>Problemi</strong><p class="muted">Le segnalazioni sono presenti nel database; manca ancora il form di inserimento dedicato.</p></div>
       </div>` : ""}
     `;
     $("detailDialog").showModal();
+    await renderChecklistSection(p);
+    await renderPhotoSummary(p);
   }
 
   function detail(k,v){
@@ -245,6 +330,7 @@
       $("poseDialogTitle").textContent="Nuova posa";
       $("scheduledDate").value=isoLocal(new Date());
       $("startTime").value="08:00";
+      $("financing").value="false";
       if(state.teams[0]) $("teamId").value=state.teams[0].id;
       return;
     }
@@ -261,6 +347,7 @@
     $("startTime").value=fmtTime(p.start_time)==="—" ? "" : fmtTime(p.start_time);
     $("endTime").value=fmtTime(p.end_time)==="—" ? "" : fmtTime(p.end_time);
     $("teamId").value=p.team_id||"";
+    $("financing").value=p.financing ? "true" : "false";
     $("officeNotes").value=p.office_notes||"";
   }
 
@@ -292,6 +379,7 @@
       start_time:$("startTime").value,
       end_time:$("endTime").value||null,
       team_id:$("teamId").value,
+      financing:$("financing").value==="true",
       office_notes:$("officeNotes").value.trim()||null,
       updated_by:state.session.user.id
     };
