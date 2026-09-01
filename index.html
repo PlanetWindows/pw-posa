@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css?v=20260901-monthly1" />
+  <link rel="stylesheet" href="styles.css?v=20260901-checklist1" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -110,6 +110,12 @@
         <label>Squadra *
           <select id="teamId" required></select>
         </label>
+        <label>Finanziamento
+          <select id="financing" required>
+            <option value="false">No</option>
+            <option value="true">Sì</option>
+          </select>
+        </label>
         <label class="span2">Indirizzo *
           <input id="address" required />
         </label>
@@ -154,6 +160,6 @@
   </dialog>
 
   <script src="config.js?v=20260901-loginfix2"></script>
-  <script src="app.js?v=20260901-monthly1"></script>
+  <script src="app.js?v=20260901-checklist1"></script>
 </body>
 </html>
