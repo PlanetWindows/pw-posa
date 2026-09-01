@@ -3,7 +3,7 @@
   "short_name": "PW Posa",
   "start_url": "./",
   "display": "standalone",
-  "background_color": "#f6f7f8",
-  "theme_color": "#f47b20",
+  "background_color": "#F5F3EF",
+  "theme_color": "#D2AB67",
   "description": "Gestione pose Planet Windows"
 }

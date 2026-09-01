@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#f47b20" />
   <title>PW Posa</title>
-  <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+  <link rel="icon" href="favicon.ico" type="image/x-icon" />
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="stylesheet" href="styles.css" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -15,8 +15,10 @@
 
   <section id="loginView" class="login-shell">
     <div class="brand-panel">
-      <div class="brand-mark">PW</div>
-      <div>
+      <div class="brand-logo-card">
+        <img src="logo_planet.svg" alt="Planet Windows" class="brand-logo-full" />
+      </div>
+      <div class="brand-copy">
         <div class="eyebrow">PLANET WINDOWS</div>
         <h1>PW Posa</h1>
         <p>Gestione pose, squadre e attività in cantiere.</p>
@@ -40,7 +42,9 @@
   <section id="appView" class="app-shell hidden">
     <aside class="sidebar">
       <div class="sidebar-brand">
-        <div class="brand-mark small">PW</div>
+        <div class="sidebar-logo-card">
+          <img src="logo_planet.svg" alt="Planet Windows" class="sidebar-logo" />
+        </div>
         <div><strong>PW Posa</strong><span id="roleLabel">—</span></div>
       </div>
 

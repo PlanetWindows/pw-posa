@@ -1,10 +1,10 @@
 :root{
-  --orange:#f47b20;
-  --orange-dark:#d9630e;
-  --ink:#1c1f24;
+  --orange:#D2AB67;
+  --orange-dark:#B68D4F;
+  --ink:#161616;
   --muted:#6b7280;
-  --line:#e7e7e7;
-  --bg:#f6f7f8;
+  --line:#E4DED4;
+  --bg:#F5F3EF;
   --card:#ffffff;
   --green:#15803d;
   --red:#b91c1c;
@@ -105,4 +105,70 @@ tr.clickable:hover{background:#fff7f1}
   .span2{grid-column:auto}
   .detail-grid{grid-template-columns:1fr}
   .installer-actions{grid-template-columns:1fr}
+}
+
+
+/* Planet Windows branding */
+.brand-logo-card{
+  background:#fff;
+  border-radius:22px;
+  padding:24px 30px;
+  box-shadow:var(--shadow);
+  width:min(560px,80vw);
+}
+.brand-logo-full{
+  display:block;
+  width:100%;
+  height:auto;
+}
+.brand-copy{
+  margin-top:28px;
+}
+.brand-panel{
+  background:linear-gradient(145deg,#050505 0%,#171717 100%);
+  align-items:flex-start;
+  flex-direction:column;
+  justify-content:center;
+}
+.brand-panel h1{color:#fff;}
+.eyebrow{color:#D2AB67;}
+.btn.primary{background:#D2AB67;color:#111;}
+.btn.primary:hover{background:#B68D4F;color:#111;}
+.sidebar{
+  background:#080808;
+  border-right:1px solid #2A2A2A;
+}
+.sidebar-logo-card{
+  background:#fff;
+  border-radius:9px;
+  padding:7px 9px;
+  width:112px;
+  flex:0 0 auto;
+}
+.sidebar-logo{
+  width:100%;
+  height:auto;
+  display:block;
+}
+.nav-item:hover,.nav-item.active{
+  background:#D2AB67;
+  color:#111;
+}
+.pose-chip{
+  border-left-color:#D2AB67;
+  background:#FBF7EF;
+}
+.badge.orange{
+  background:#F5EBDD;
+  color:#7A5A2A;
+}
+.topbar{
+  border-bottom:2px solid #D2AB67;
+}
+.login-card{
+  border-top:5px solid #D2AB67;
+}
+@media(max-width:900px){
+  .brand-logo-card{width:min(500px,100%);padding:18px 20px;}
+  .sidebar-logo-card{width:92px;}
 }
