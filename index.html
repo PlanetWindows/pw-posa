@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=20260901-monthly1" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -59,7 +59,8 @@
       </nav>
 
       <nav id="installerNav" class="nav hidden">
-        <button data-view="myposes" class="nav-item active">Le mie pose</button>
+        <button data-view="calendar" class="nav-item active">Calendario</button>
+        <button data-view="myposes" class="nav-item">Le mie pose</button>
         <button data-view="issues" class="nav-item">Segnalazioni</button>
       </nav>
 
@@ -75,7 +76,10 @@
           <div class="eyebrow">PW POSA</div>
           <h2 id="pageTitle">Calendario</h2>
         </div>
-        <button id="newPoseBtn" class="btn primary hidden">+ Nuova posa</button>
+        <div class="topbar-actions">
+          <button id="newPoseBtn" class="btn primary hidden">+ Nuova posa</button>
+          <button id="topLogoutBtn" class="btn ghost top-logout">Esci</button>
+        </div>
       </header>
 
       <div id="content" class="content"></div>
@@ -85,11 +89,11 @@
   <dialog id="poseDialog" class="dialog">
     <form id="poseForm" method="dialog">
       <div class="dialog-head">
-        <div>
+        <div class="dialog-title-wrap">
           <div class="eyebrow">PROGRAMMAZIONE</div>
           <h3 id="poseDialogTitle">Nuova posa</h3>
         </div>
-        <button type="button" class="icon-btn" id="closePoseDialog">×</button>
+        <button type="button" class="icon-btn" id="closePoseDialog" aria-label="Chiudi">×</button>
       </div>
 
       <input type="hidden" id="poseId" />
@@ -137,16 +141,19 @@
 
   <dialog id="detailDialog" class="dialog wide">
     <div class="dialog-head">
-      <div>
+      <div class="dialog-title-wrap">
         <div class="eyebrow">DETTAGLIO POSA</div>
         <h3 id="detailTitle">—</h3>
       </div>
-      <button type="button" class="icon-btn" id="closeDetailDialog">×</button>
+      <div class="detail-head-actions">
+        <button type="button" class="btn ghost edit-pose-btn hidden" id="editPoseBtn" title="Modifica posa">✎ Modifica</button>
+        <button type="button" class="icon-btn" id="closeDetailDialog" aria-label="Chiudi">×</button>
+      </div>
     </div>
     <div id="detailContent"></div>
   </dialog>
 
   <script src="config.js?v=20260901-loginfix2"></script>
-  <script src="app.js?v=20260901-loginfix2"></script>
+  <script src="app.js?v=20260901-monthly1"></script>
 </body>
 </html>
