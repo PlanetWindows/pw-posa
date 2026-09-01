@@ -117,7 +117,7 @@ tr.clickable:hover{background:#fcf8f1}
 .empty{padding:46px;text-align:center;color:var(--muted)}
 
 /* DIALOG E FORM */
-.dialog{border:0;border-radius:20px;padding:0;width:min(760px,94vw);max-width:94vw;box-shadow:0 24px 70px rgba(33,29,30,.22);background:#fff;overflow:hidden}
+.dialog{border:0;border-radius:20px;padding:0;width:min(760px,94vw);max-width:94vw;max-height:calc(100dvh - 32px);box-shadow:0 24px 70px rgba(33,29,30,.22);background:#fff;overflow:hidden;margin:auto}
 .dialog.wide{width:min(900px,95vw);max-width:95vw}
 .dialog::backdrop{background:rgba(30,27,27,.46);backdrop-filter:blur(2px)}
 .dialog form,.dialog>div{padding:0}
@@ -142,6 +142,15 @@ tr.clickable:hover{background:#fcf8f1}
 .action-card:before{content:"";display:block;width:22px;height:3px;background:var(--gold);border-radius:3px;margin-bottom:11px}
 .toast{position:fixed;right:20px;bottom:20px;z-index:999;background:var(--black);color:#fff;border-radius:11px;padding:13px 17px;opacity:0;transform:translateY(10px);pointer-events:none;transition:.2s;box-shadow:var(--shadow);border-left:4px solid var(--gold)}
 .toast.show{opacity:1;transform:none}
+
+/* FIX SCROLL POPUP NUOVA/MODIFICA POSA */
+html:has(#poseDialog[open]),body:has(#poseDialog[open]){overflow:hidden}
+#poseDialog[open]{display:block;overflow:hidden;max-height:calc(100dvh - 32px)}
+#poseDialog form{display:flex;flex-direction:column;max-height:calc(100dvh - 32px);height:auto;min-height:0;overflow:hidden}
+#poseDialog .dialog-head{position:sticky;top:0;z-index:3;flex:0 0 auto}
+#poseDialog .grid2{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;scrollbar-gutter:stable}
+#poseDialog .dialog-actions{position:sticky;bottom:0;z-index:3;flex:0 0 auto}
+#poseDialog input,#poseDialog select,#poseDialog textarea{min-width:0;max-width:100%}
 
 @media(max-width:900px){
   .login-shell{grid-template-columns:1fr;background:#fff}
@@ -178,7 +187,8 @@ tr.clickable:hover{background:#fcf8f1}
   .topbar{align-items:flex-end;gap:10px}
   .topbar .btn.primary{min-width:auto;padding:10px 12px}
   .topbar .btn.ghost{padding:10px 12px}
-  .dialog.wide,.dialog{width:96vw;max-width:96vw}
+  .dialog.wide,.dialog{width:96vw;max-width:96vw;max-height:calc(100dvh - 16px)}
+  #poseDialog[open],#poseDialog form{max-height:calc(100dvh - 16px)}
   .dialog-head{gap:10px}
   .dialog-head h3{font-size:18px}
   .edit-pose-btn{font-size:0;width:38px;height:38px;padding:0}
