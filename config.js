@@ -4,6 +4,6 @@
 // NON inserire mai la service_role key.
 
 window.PW_POSA_CONFIG = {
-  SUPABASE_URL: "https://vbpinzygwexuvwomnmbt.supabase.co/rest/v1/",
+  SUPABASE_URL: "https://vbpinzygwexuvwomnmbt.supabase.co",
   SUPABASE_ANON_KEY: "sb_publishable_1WuHCWsnDwZ6AqNBBBa5gA_Djh9OV_N"
 };
