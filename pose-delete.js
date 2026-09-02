@@ -96,6 +96,8 @@
     const p = await getProfile().catch(()=>null);
     const actions=detail.querySelector('.detail-head-actions');
     if(!actions) return;
+    const title=String($('detailTitle')?.textContent||'');
+    if(title.includes('·')) currentJobNumber=title.split('·')[0].trim();
     let btn=$('deletePoseBtn');
     if(!isScheduler(p)){
       btn?.remove();
@@ -122,7 +124,6 @@
     const opener=e.target.closest('[data-pose]');
     if(opener?.dataset.pose){
       currentPoseId=opener.dataset.pose;
-      currentJobNumber=(opener.querySelector('strong')?.textContent||'').split('·').pop().trim();
       setTimeout(ensureDeleteButton,80);
     }
   },true);
