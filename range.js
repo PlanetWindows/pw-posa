@@ -5,7 +5,7 @@
   const $=id=>document.getElementById(id);
   let decorateTimer=null;
 
-  const esc=v=>String(v??'').replace(/[&<>"']/g,s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[s]));
+  const esc=v=>String(v??'').replace(/[&<>"']/g,s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#039;'}[s]));
   const iso=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
   const parse=s=>{const [y,m,d]=String(s).split('-').map(Number);return new Date(y,m-1,d,12)};
   const toast=msg=>{const el=$('toast');if(!el)return;el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),2600)};
@@ -89,7 +89,12 @@
         const end=p.scheduled_end_date||p.scheduled_date;
         if(date<p.scheduled_date||date>end||date===p.scheduled_date) return;
         if(host.querySelector(`[data-range-pose="${CSS.escape(p.id)}"]`)) return;
-        const chip=document.createElement('div'); chip.className='pose-chip range-chip'; chip.dataset.rangePose=p.id;
+        host.querySelector('.calendar-empty')?.remove();
+        const chip=document.createElement('button');
+        chip.type='button';
+        chip.className='pose-chip range-chip';
+        chip.dataset.rangePose=p.id;
+        chip.dataset.pose=p.id;
         chip.innerHTML=`<strong>${esc(String(p.start_time||'').slice(0,5))} · ${esc(p.job_number)}</strong><span>${esc(p.client_name)}</span><span class="range-label">giorno successivo</span>`;
         host.appendChild(chip);
       });
@@ -100,6 +105,16 @@
   const content=$('content'); if(content) new MutationObserver(scheduleDecorate).observe(content,{childList:true,subtree:true});
   document.addEventListener('click',e=>{if(e.target.closest('#calendarPrev,#calendarNext,#calendarToday,.nav-item[data-view="calendar"]')) scheduleDecorate();});
   scheduleDecorate();
+
+  document.addEventListener('click',e=>{
+    const rangeEl=e.target.closest('[data-range-pose]');
+    if(!rangeEl) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const id=rangeEl.dataset.rangePose;
+    const source=[...document.querySelectorAll(`.pose-chip[data-pose="${CSS.escape(id)}"]`)].find(el=>!el.hasAttribute('data-range-pose'));
+    if(source) source.click();
+  },true);
 
   document.addEventListener('click',e=>{
     const poseEl=e.target.closest('[data-pose]'); if(!poseEl) return;
