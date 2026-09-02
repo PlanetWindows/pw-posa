@@ -17,43 +17,39 @@
     if (!el) return;
     el.textContent = msg;
     el.classList.add('show');
-    setTimeout(() => el.classList.remove('show'), 5000);
+    setTimeout(() => el.classList.remove('show'), 6000);
   };
 
   async function poseById(id){
     const {data,error} = await sb.from('poses').select('*').eq('id', id).single();
-    if(error) throw error;
+    if(error) throw new Error(`Posa: ${error.message}`);
     return data;
   }
 
   async function linkedReportForDay(poseId, date){
     const {data:links,error:le} = await sb.from('daily_report_poses').select('report_id').eq('pose_id', poseId);
-    if(le) throw le;
+    if(le) throw new Error(`Collegamento rapportino: ${le.message}`);
     const ids = (links || []).map(x => x.report_id).filter(Boolean);
     if(!ids.length) return null;
     const {data,error} = await sb.from('daily_reports').select('*').in('id', ids).eq('report_date', date).order('created_at',{ascending:false}).limit(1);
-    if(error) throw error;
+    if(error) throw new Error(`Ricerca rapportino: ${error.message}`);
     return data?.[0] || null;
   }
 
-  function numberFor(pose,date){
-    const job = String(pose.job_number || 'POSA').replace(/[^a-zA-Z0-9]+/g,'').slice(0,14) || 'POSA';
-    const token = String(pose.id || '').replace(/-/g,'').slice(0,8).toUpperCase();
-    return `RAP-${String(date).replaceAll('-','')}-${job}-${token}`;
-  }
-
-  async function reportByNumber(n){
-    const {data,error} = await sb.from('daily_reports').select('*').eq('report_number',n).limit(1);
-    if(error) throw error;
-    return data?.[0] || null;
+  function uniqueReportNumber(pose,date){
+    const job = String(pose.job_number || 'POSA').replace(/[^a-zA-Z0-9]+/g,'').slice(0,12) || 'POSA';
+    const poseToken = String(pose.id || '').replace(/-/g,'').slice(0,6).toUpperCase();
+    const randomToken = (window.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`)
+      .replace(/[^a-zA-Z0-9]/g,'').slice(-10).toUpperCase();
+    return `RAP-${String(date).replaceAll('-','')}-${job}-${poseToken}-${randomToken}`;
   }
 
   async function ensureLink(reportId,poseId){
     const {data,error} = await sb.from('daily_report_poses').select('report_id').eq('report_id',reportId).eq('pose_id',poseId).limit(1);
-    if(error) throw error;
+    if(error) throw new Error(`Verifica collegamento: ${error.message}`);
     if(data?.length) return;
     const {error:ie} = await sb.from('daily_report_poses').insert({report_id:reportId,pose_id:poseId});
-    if(ie && ie.code !== '23505') throw ie;
+    if(ie && ie.code !== '23505') throw new Error(`Collegamento posa/rapportino: ${ie.message}`);
   }
 
   async function makePdf(report,pose){
@@ -61,74 +57,96 @@
     const doc = new window.jspdf.jsPDF({unit:'mm',format:'a4'});
     const gold=[201,155,67], black=[33,29,30];
     doc.setDrawColor(...gold); doc.setLineWidth(1); doc.line(14,20,196,20);
-    doc.setTextColor(...black); doc.setFont('helvetica','bold'); doc.setFontSize(18);
-    doc.text('PLANET WINDOWS - RAPPORTINO DI FINE GIORNATA',14,32);
-    let y=44; doc.setFontSize(10);
-    const add=(k,v)=>{doc.setFont('helvetica','bold');doc.text(`${k}:`,14,y);doc.setFont('helvetica','normal');const lines=doc.splitTextToSize(String(v ?? '—'),145);doc.text(lines,48,y);y+=Math.max(7,lines.length*5);};
-    add('Numero',report.report_number); add('Data',report.report_date); add('Commessa',pose.job_number); add('Cliente',pose.client_name); add('Indirizzo',`${pose.address||''}${pose.city?', '+pose.city:''}${pose.postal_code?' '+pose.postal_code:''}`); add('Ore lavorate',report.hours_worked);
-    const sections=[['COSA È STATO FATTO',report.completed_work],['COSA NON È STATO FATTO / COSA RIMANE',report.remaining_work],['PERCHÉ NON È STATO FATTO',report.not_completed_reason],['PROBLEMI / ANOMALIE',report.issues_found],['MATERIALI / NOTE',report.materials_notes],['NOTE FINALI',report.final_notes]];
-    for(const [title,text] of sections){ if(y>260){doc.addPage();y=20;} doc.setTextColor(...gold);doc.setFont('helvetica','bold');doc.text(title,14,y);y+=5;doc.setTextColor(...black);doc.setFont('helvetica','normal');const lines=doc.splitTextToSize(String(text||'—'),182);doc.text(lines,14,y);y+=lines.length*5+8; }
+    doc.setTextColor(...black); doc.setFont('helvetica','bold'); doc.setFontSize(17);
+    doc.text('PLANET WINDOWS',14,31);
+    doc.setFontSize(15); doc.text('RAPPORTINO DI FINE GIORNATA',14,40);
+    let y=51; doc.setFontSize(10);
+    const add=(k,v)=>{
+      doc.setFont('helvetica','bold'); doc.text(`${k}:`,14,y);
+      doc.setFont('helvetica','normal');
+      const lines=doc.splitTextToSize(String(v ?? '—'),142);
+      doc.text(lines,50,y); y+=Math.max(7,lines.length*5);
+    };
+    add('Numero',report.report_number);
+    add('Data',report.report_date);
+    add('Commessa',pose.job_number);
+    add('Cliente',pose.client_name);
+    add('Indirizzo',`${pose.address||''}${pose.city?', '+pose.city:''}${pose.postal_code?' '+pose.postal_code:''}`);
+    add('Ore lavorate',report.hours_worked);
+
+    const sections=[
+      ['COSA È STATO FATTO',report.completed_work],
+      ['COSA NON È STATO FATTO / COSA RIMANE',report.remaining_work],
+      ['PERCHÉ NON È STATO FATTO',report.not_completed_reason],
+      ['PROBLEMI / ANOMALIE',report.issues_found],
+      ['MATERIALI / NOTE',report.materials_notes],
+      ['NOTE FINALI',report.final_notes]
+    ];
+    for(const [title,text] of sections){
+      if(y>258){doc.addPage();y=20;}
+      doc.setTextColor(...gold); doc.setFont('helvetica','bold'); doc.text(title,14,y); y+=5;
+      doc.setTextColor(...black); doc.setFont('helvetica','normal');
+      const lines=doc.splitTextToSize(String(text||'—'),182);
+      doc.text(lines,14,y); y+=lines.length*5+8;
+    }
+    if(y>272){doc.addPage();y=20;}
+    doc.setDrawColor(220,215,208); doc.line(14,y,196,y); y+=6;
+    doc.setFontSize(8); doc.setTextColor(100,95,92);
+    doc.text(`PW Posa · Generato il ${new Date().toLocaleString('it-IT')}`,14,y);
+
     const blob = doc.output('blob');
-    if(!blob || blob.size < 100) throw new Error('PDF: file generato vuoto');
+    if(!blob || blob.size < 500) throw new Error(`PDF: file generato non valido (${blob?.size || 0} byte)`);
     return blob;
   }
 
   async function savePdf(report,pose){
     const blob = await makePdf(report,pose);
-    const path = `poses/${pose.id}/rapportini/${report.id}.pdf`;
-    const {error:ue} = await sb.storage.from('pw-posa-documents').upload(path,blob,{contentType:'application/pdf',upsert:true});
+    const path = `poses/${pose.id}/rapportini/${report.id}-${Date.now()}.pdf`;
+    const {data:uploadData,error:ue} = await sb.storage.from('pw-posa-documents').upload(path,blob,{contentType:'application/pdf',upsert:false});
     if(ue) throw new Error(`PDF upload Storage: ${ue.message}`);
+    if(!uploadData?.path) throw new Error('PDF upload Storage: nessun percorso restituito');
+
     const filename = `${report.report_number || report.id}.pdf`.replace(/[^a-zA-Z0-9._-]+/g,'-');
     const generatedAt = new Date().toISOString();
-    const {data,error:de} = await sb.from('daily_reports').update({pdf_storage_path:path,pdf_file_name:filename,pdf_generated_at:generatedAt}).eq('id',report.id).select('*').single();
+    const {data,error:de} = await sb.from('daily_reports')
+      .update({pdf_storage_path:uploadData.path,pdf_file_name:filename,pdf_generated_at:generatedAt})
+      .eq('id',report.id).select('*').single();
     if(de) throw new Error(`PDF collegamento DB: ${de.message}`);
+    if(!data?.pdf_storage_path) throw new Error('PDF collegamento DB: percorso PDF non salvato');
     return data;
   }
 
   async function saveCanonicalReport(pose,date,basePayload){
-    const targetNumber = numberFor(pose,date);
-    const linked = await linkedReportForDay(pose.id,date);
-    const byNumber = await reportByNumber(targetNumber);
+    const existing = await linkedReportForDay(pose.id,date);
 
-    // Se il numero univoco esiste, QUEL record è sempre il canonico.
-    // Altrimenti usiamo il record già collegato alla posa/giornata.
-    let canonical = byNumber || linked || null;
-
-    if(canonical){
-      const payload = {...basePayload};
-      // Non riscriviamo mai report_number su un record esistente: evita qualsiasi conflitto UNIQUE.
-      const {data,error} = await sb.from('daily_reports').update(payload).eq('id',canonical.id).select('*').single();
+    if(existing){
+      const {data,error} = await sb.from('daily_reports').update(basePayload).eq('id',existing.id).select('*').single();
       if(error) throw new Error(`Rapportino update: ${error.message}`);
       await ensureLink(data.id,pose.id);
       return data;
     }
 
-    const insertPayload = {...basePayload, report_number:targetNumber};
-    let {data,error} = await sb.from('daily_reports').insert(insertPayload).select('*').single();
-
-    // Protezione anche contro race/doppio tap: se nel frattempo qualcuno ha creato lo stesso numero,
-    // recuperiamo quel record e lo aggiorniamo invece di fallire.
-    if(error && (error.code === '23505' || String(error.message||'').includes('daily_reports_report_number_key'))){
-      const existing = await reportByNumber(targetNumber);
-      if(!existing) throw new Error(`Rapportino insert: ${error.message}`);
-      const retry = await sb.from('daily_reports').update(basePayload).eq('id',existing.id).select('*').single();
-      if(retry.error) throw new Error(`Rapportino recupero duplicato: ${retry.error.message}`);
-      data = retry.data;
-      error = null;
+    // IMPORTANTE: per un nuovo rapportino usiamo SEMPRE un numero realmente univoco.
+    // Non riutilizziamo più un numero deterministico che può scontrarsi con record storici/orfani.
+    for(let attempt=0; attempt<3; attempt++){
+      const report_number = uniqueReportNumber(pose,date);
+      const {data,error} = await sb.from('daily_reports')
+        .insert({...basePayload,report_number})
+        .select('*').single();
+      if(!error){
+        await ensureLink(data.id,pose.id);
+        return data;
+      }
+      const duplicate = error.code === '23505' || String(error.message||'').includes('daily_reports_report_number_key');
+      if(!duplicate) throw new Error(`Rapportino insert: ${error.message}`);
     }
-    if(error) throw new Error(`Rapportino insert: ${error.message}`);
-    await ensureLink(data.id,pose.id);
-    return data;
+    throw new Error('Rapportino insert: impossibile creare un numero univoco dopo 3 tentativi');
   }
 
   async function handleSubmit(e){
     if(e.target?.id !== 'dailyReportForm') return;
-
-    // IMPORTANTE: questo listener è sul document in CAPTURE, quindi blocca prima di tutto
-    // i vecchi handler presenti in reports.js. In questo modo esiste UN SOLO salvataggio.
     e.preventDefault();
     e.stopImmediatePropagation();
-
     if(busy) return;
     busy = true;
 
@@ -147,12 +165,15 @@
       const date = $('reportDate')?.value;
       if(!date) throw new Error('Seleziona la giornata');
 
+      const completed = ($('reportCompleted')?.value || '').trim();
+      if(!completed) throw new Error('Compila "Cosa è stato fatto"');
+
       const basePayload = {
         report_date:date,
         created_by:session.user.id,
         team_id:pose.team_id,
         hours_worked:Number($('reportHours')?.value || 0),
-        completed_work:($('reportCompleted')?.value || '').trim(),
+        completed_work:completed,
         remaining_work:($('reportRemaining')?.value || '').trim() || null,
         not_completed_reason:($('reportReason')?.value || '').trim() || null,
         issues_found:($('reportIssues')?.value || '').trim() || null,
@@ -163,18 +184,21 @@
         updated_at:new Date().toISOString()
       };
 
+      if(state) state.textContent='1/3 Salvataggio rapportino…';
       const saved = await saveCanonicalReport(pose,date,basePayload);
       form.dataset.reportId=saved.id;
 
-      if(state) state.textContent='Rapportino salvato. Generazione PDF…';
-      await savePdf(saved,pose);
-      if(state) state.innerHTML='Rapportino salvato · <span class="pdf-ready">PDF archiviato</span>';
+      if(state) state.textContent='2/3 Creazione PDF…';
+      const withPdf = await savePdf(saved,pose);
+
+      if(state) state.innerHTML=`3/3 Completato · <span class="pdf-ready">PDF archiviato</span>`;
+      form.dataset.reportId=withPdf.id;
       toast('Rapportino salvato e PDF archiviato');
     } catch(err){
       const msg=err?.message || String(err);
-      if(state) state.textContent=msg;
+      if(state) state.textContent=`ERRORE: ${msg}`;
       toast(msg);
-      console.error('PW Posa authoritative report save',err);
+      console.error('PW Posa report/PDF',err);
     } finally {
       busy=false;
       if(btn){btn.disabled=false;btn.textContent='Salva rapportino';}
