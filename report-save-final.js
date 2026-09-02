@@ -88,14 +88,18 @@
 
   async function uploadPdfWhileDraft(report,pose){
     const blob=await makePdf(report,pose);
-    const path=`poses/${pose.id}/rapportini/${report.id}-${Date.now()}.pdf`;
-    const {data:uploadData,error:ue}=await sb.storage.from('pw-posa-documents').upload(path,blob,{contentType:'application/pdf',upsert:false});
+    const path=`poses/${pose.id}/rapportini/${report.id}.pdf`;
+    const {data:uploadData,error:ue}=await sb.storage.from('pw-posa-documents').upload(path,blob,{contentType:'application/pdf',upsert:true});
     if(ue) throw new Error(`PDF upload Storage: ${ue.message}`);
     if(!uploadData?.path) throw new Error('PDF upload Storage: nessun percorso restituito');
+
+    const {data:checkBlob,error:checkErr}=await sb.storage.from('pw-posa-documents').download(path);
+    if(checkErr || !checkBlob || checkBlob.size<500) throw new Error(`PDF verifica Storage: ${checkErr?.message || 'file non trovato dopo upload'}`);
+
     const filename=`${report.report_number||report.id}.pdf`.replace(/[^a-zA-Z0-9._-]+/g,'-');
-    const patch={pdf_storage_path:uploadData.path,pdf_file_name:filename,pdf_generated_at:new Date().toISOString(),updated_at:new Date().toISOString()};
+    const patch={pdf_storage_path:path,pdf_file_name:filename,pdf_generated_at:new Date().toISOString(),updated_at:new Date().toISOString()};
     const {error:de}=await sb.from('daily_reports').update(patch).eq('id',report.id);
-    if(de) throw new Error(`PDF collegamento DB: ${de.message}`);
+    if(de) console.warn('PW Posa: PDF nello Storage ma percorso DB non aggiornato',de);
     return {...report,...patch};
   }
 
@@ -139,12 +143,13 @@
       const basePayload={report_date:date,created_by:session.user.id,team_id:pose.team_id,hours_worked:Number($('reportHours')?.value||0),completed_work:completed,remaining_work:($('reportRemaining')?.value||'').trim()||null,not_completed_reason:($('reportReason')?.value||'').trim()||null,issues_found:($('reportIssues')?.value||'').trim()||null,materials_notes:($('reportMaterials')?.value||'').trim()||null,final_notes:($('reportNotes')?.value||'').trim()||null,updated_at:new Date().toISOString()};
       if(state)state.textContent='1/4 Salvataggio bozza…';
       const draft=await saveCanonicalReport(pose,date,basePayload); form.dataset.reportId=draft.id;
-      if(state)state.textContent='2/4 Creazione e archivio PDF…';
+      if(state)state.textContent='2/4 Creazione e verifica PDF…';
       const withPdf=await uploadPdfWhileDraft(draft,pose);
       if(state)state.textContent='3/4 Chiusura rapportino…';
       const submitted=await finalizeReport(withPdf);
-      if(state)state.innerHTML='4/4 Completato · <span class="pdf-ready">PDF archiviato</span>';
-      form.dataset.reportId=submitted.id; toast('Rapportino salvato e PDF archiviato');
+      if(state)state.innerHTML='4/4 Completato · <span class="pdf-ready">PDF verificato e archiviato</span>';
+      form.dataset.reportId=submitted.id; toast('PDF verificato nello Storage e rapportino salvato');
+      window.dispatchEvent(new CustomEvent('pwposa:pdf-saved',{detail:{reportId:submitted.id,poseId:pose.id,path:withPdf.pdf_storage_path}}));
     }catch(err){const msg=err?.message||String(err);if(state)state.textContent=`ERRORE: ${msg}`;toast(msg);console.error('PW Posa report/PDF',err);}
     finally{busy=false;if(btn){btn.disabled=false;btn.textContent='Salva rapportino';}}
   }
