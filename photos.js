@@ -45,14 +45,12 @@
       toast('Categoria foto non identificata');
       return;
     }
-
     const input=document.createElement('input');
     input.type='file';
     input.accept='image/*';
     if(camera) input.setAttribute('capture','environment');
     input.style.display='none';
     document.body.appendChild(input);
-
     input.addEventListener('change',async()=>{
       const file=input.files?.[0];
       input.remove();
@@ -60,7 +58,6 @@
       if(!file) return;
       try{await uploadPhoto(file,context)}catch(err){toast(err.message);console.error('PW Posa photo upload',err)}
     },{once:true});
-
     input.click();
   }
 
@@ -68,26 +65,21 @@
     const poseId=context?.poseId;
     const phase=context?.phase;
     if(!poseId||!validPhases.has(phase)) throw new Error('Categoria foto non valida');
-
     const {data:{session}}=await sb.auth.getSession();
     if(!session) throw new Error('Sessione scaduta');
-
     const safe=(file.name||'foto.jpg').replace(/[^a-zA-Z0-9._-]+/g,'-');
     const token=crypto.randomUUID?.()||Math.random().toString(36).slice(2);
     const path=`poses/${poseId}/${phase}/${Date.now()}-${token}-${safe}`;
     const status=document.querySelector(`[data-photo-status="${phase}"]`);
     if(status) status.textContent=`Caricamento in ${labels[phase]}…`;
-
     const {error:upErr}=await sb.storage.from('pw-posa-photos').upload(path,file,{contentType:file.type||'image/jpeg',upsert:false});
     if(upErr) throw new Error(`Upload foto: ${upErr.message}`);
-
     const {data:row,error:dbErr}=await sb.from('pose_photos')
       .insert({pose_id:poseId,phase,storage_path:path,uploaded_by:session.user.id,caption:null})
       .select('id,phase,storage_path')
       .single();
     if(dbErr) throw new Error(`Registrazione foto: ${dbErr.message}`);
     if(String(row?.phase||'').toLowerCase()!==phase) throw new Error(`Foto salvata nella categoria errata (${row?.phase||'sconosciuta'})`);
-
     toast(`Foto salvata in ${labels[phase]}`);
     await renderPhotoControls(poseId);
   }
@@ -95,15 +87,20 @@
   async function renderPhotoControls(poseId){
     const root=$('photoSection'); if(!root) return;
     const p=await getProfile();
+    if(p?.role!=='installer'){
+      root.innerHTML='';
+      root.classList.add('hidden');
+      return;
+    }
+    root.classList.remove('hidden');
     const {data,error}=await sb.from('pose_photos').select('id,phase,storage_path,created_at').eq('pose_id',poseId).order('created_at',{ascending:false});
-    if(error){root.innerHTML=`<div class="action-card"><strong>Foto posa</strong><p class="muted">${esc(error.message)}</p></div>`;return;}
+    if(error){root.innerHTML='';root.classList.add('hidden');console.warn('PW Posa photo summary unavailable',error.message);return;}
     const rows=data||[];
     root.innerHTML=Object.entries(labels).map(([phase,label])=>{
       const count=rows.filter(x=>String(x.phase||'').toLowerCase()===phase).length;
-      const plus=p?.role==='installer'?`<button type="button" class="photo-add-btn" data-photo-add="${phase}" aria-label="Aggiungi ${esc(label)}">+</button>`:'';
+      const plus=`<button type="button" class="photo-add-btn" data-photo-add="${phase}" aria-label="Aggiungi ${esc(label)}">+</button>`;
       return `<div class="action-card photo-phase-card"><div class="photo-phase-head"><strong>${esc(label)}</strong>${plus}</div><p class="muted">${count} foto ${count===1?'presente':'presenti'}</p><div class="photo-upload-status" data-photo-status="${phase}"></div></div>`;
     }).join('');
-
     root.querySelectorAll('[data-photo-add]').forEach(btn=>btn.addEventListener('click',()=>{
       const phase=String(btn.dataset.photoAdd||'').toLowerCase();
       openChooser(poseId,phase);
