@@ -52,16 +52,6 @@
     if(ie && ie.code !== '23505') throw new Error(`Collegamento posa/rapportino: ${ie.message}`);
   }
 
-  async function finalizeReport(reportId){
-    const {data,error} = await sb.from('daily_reports')
-      .update({status:'submitted',submitted_at:new Date().toISOString(),updated_at:new Date().toISOString()})
-      .eq('id',reportId)
-      .select('*')
-      .single();
-    if(error) throw new Error(`Invio rapportino: ${error.message}`);
-    return data;
-  }
-
   async function makePdf(report,pose){
     if(!window.jspdf?.jsPDF) throw new Error('PDF: libreria jsPDF non disponibile');
     const doc = new window.jspdf.jsPDF({unit:'mm',format:'a4',compress:true});
@@ -83,15 +73,7 @@
     add('Cliente',pose.client_name);
     add('Indirizzo',`${pose.address||''}${pose.city?', '+pose.city:''}${pose.postal_code?' '+pose.postal_code:''}`);
     add('Ore lavorate',report.hours_worked);
-
-    const sections=[
-      ['COSA È STATO FATTO',report.completed_work],
-      ['COSA NON È STATO FATTO / COSA RIMANE',report.remaining_work],
-      ['PERCHÉ NON È STATO FATTO',report.not_completed_reason],
-      ['PROBLEMI / ANOMALIE',report.issues_found],
-      ['MATERIALI / NOTE',report.materials_notes],
-      ['NOTE FINALI',report.final_notes]
-    ];
+    const sections=[['COSA È STATO FATTO',report.completed_work],['COSA NON È STATO FATTO / COSA RIMANE',report.remaining_work],['PERCHÉ NON È STATO FATTO',report.not_completed_reason],['PROBLEMI / ANOMALIE',report.issues_found],['MATERIALI / NOTE',report.materials_notes],['NOTE FINALI',report.final_notes]];
     for(const [title,text] of sections){
       if(y>258){doc.addPage();y=20;}
       doc.setTextColor(...gold); doc.setFont('helvetica','bold'); doc.text(title,14,y); y+=5;
@@ -99,128 +81,72 @@
       const lines=doc.splitTextToSize(String(text||'—'),182);
       doc.text(lines,14,y); y+=lines.length*5+8;
     }
-    if(y>272){doc.addPage();y=20;}
-    doc.setDrawColor(220,215,208); doc.line(14,y,196,y); y+=6;
-    doc.setFontSize(8); doc.setTextColor(100,95,92);
-    doc.text(`PW Posa · Generato il ${new Date().toLocaleString('it-IT')}`,14,y);
-
-    const blob = doc.output('blob');
-    if(!blob || blob.size < 500) throw new Error(`PDF: file generato non valido (${blob?.size || 0} byte)`);
+    const blob=doc.output('blob');
+    if(!blob || blob.size<500) throw new Error(`PDF: file generato non valido (${blob?.size||0} byte)`);
     return blob;
   }
 
-  async function savePdf(report,pose){
-    const blob = await makePdf(report,pose);
-    const path = `poses/${pose.id}/rapportini/${report.id}-${Date.now()}.pdf`;
-    const {data:uploadData,error:ue} = await sb.storage.from('pw-posa-documents').upload(path,blob,{contentType:'application/pdf',upsert:false});
+  async function uploadPdfWhileDraft(report,pose){
+    const blob=await makePdf(report,pose);
+    const path=`poses/${pose.id}/rapportini/${report.id}-${Date.now()}.pdf`;
+    const {data:uploadData,error:ue}=await sb.storage.from('pw-posa-documents').upload(path,blob,{contentType:'application/pdf',upsert:false});
     if(ue) throw new Error(`PDF upload Storage: ${ue.message}`);
     if(!uploadData?.path) throw new Error('PDF upload Storage: nessun percorso restituito');
-
-    const filename = `${report.report_number || report.id}.pdf`.replace(/[^a-zA-Z0-9._-]+/g,'-');
-    const generatedAt = new Date().toISOString();
-    const {data,error:de} = await sb.from('daily_reports')
-      .update({pdf_storage_path:uploadData.path,pdf_file_name:filename,pdf_generated_at:generatedAt})
-      .eq('id',report.id).select('*').single();
+    const filename=`${report.report_number||report.id}.pdf`.replace(/[^a-zA-Z0-9._-]+/g,'-');
+    const patch={pdf_storage_path:uploadData.path,pdf_file_name:filename,pdf_generated_at:new Date().toISOString(),updated_at:new Date().toISOString()};
+    const {error:de}=await sb.from('daily_reports').update(patch).eq('id',report.id);
     if(de) throw new Error(`PDF collegamento DB: ${de.message}`);
-    if(!data?.pdf_storage_path) throw new Error('PDF collegamento DB: percorso PDF non salvato');
-    return data;
+    return {...report,...patch};
+  }
+
+  async function finalizeReport(report){
+    const patch={status:'submitted',submitted_at:new Date().toISOString(),updated_at:new Date().toISOString()};
+    const {error}=await sb.from('daily_reports').update(patch).eq('id',report.id);
+    if(error) throw new Error(`Invio rapportino: ${error.message}`);
+    return {...report,...patch};
   }
 
   async function saveCanonicalReport(pose,date,basePayload){
-    const existing = await linkedReportForDay(pose.id,date);
-
+    const existing=await linkedReportForDay(pose.id,date);
     if(existing){
-      const {data,error} = await sb.from('daily_reports').update({...basePayload,status:'draft',submitted_at:null}).eq('id',existing.id).select('*').single();
+      const {data,error}=await sb.from('daily_reports').update({...basePayload,status:'draft',submitted_at:null}).eq('id',existing.id).select('*').maybeSingle();
       if(error) throw new Error(`Rapportino update: ${error.message}`);
-      await ensureLink(data.id,pose.id);
-      return data;
+      const result=data||{...existing,...basePayload,status:'draft',submitted_at:null};
+      await ensureLink(result.id,pose.id);
+      return result;
     }
-
-    for(let attempt=0; attempt<3; attempt++){
-      const report_number = uniqueReportNumber(pose,date);
-      const {data,error} = await sb.from('daily_reports')
-        .insert({...basePayload,status:'draft',submitted_at:null,report_number})
-        .select('*').single();
-      if(!error){
-        await ensureLink(data.id,pose.id);
-        return data;
-      }
-
-      const message = String(error.message || '');
-      const isReportNumberDuplicate = error.code === '23505' && message.includes('daily_reports_report_number_key');
-      if(isReportNumberDuplicate) continue;
-
-      if(error.code === '23505' && message.includes('daily_reports_report_date_created_by_key')){
-        throw new Error('Rapportino insert: vincolo database errato daily_reports_report_date_created_by_key. Esegui la query SQL indicata in chat per rimuoverlo.');
-      }
-
+    for(let attempt=0;attempt<3;attempt++){
+      const report_number=uniqueReportNumber(pose,date);
+      const {data,error}=await sb.from('daily_reports').insert({...basePayload,status:'draft',submitted_at:null,report_number}).select('*').single();
+      if(!error){await ensureLink(data.id,pose.id);return data;}
+      const message=String(error.message||'');
+      if(error.code==='23505'&&message.includes('daily_reports_report_number_key')) continue;
       throw new Error(`Rapportino insert: ${message}`);
     }
     throw new Error('Rapportino insert: impossibile creare un report_number univoco dopo 3 tentativi');
   }
 
   async function handleSubmit(e){
-    if(e.target?.id !== 'dailyReportForm') return;
-    e.preventDefault();
-    e.stopImmediatePropagation();
-    if(busy) return;
-    busy = true;
-
-    const form = e.target;
-    const btn=form.querySelector('button[type="submit"]');
-    const state=$('reportState');
+    if(e.target?.id!=='dailyReportForm') return;
+    e.preventDefault(); e.stopImmediatePropagation(); if(busy)return; busy=true;
+    const form=e.target,btn=form.querySelector('button[type="submit"]'),state=$('reportState');
     if(btn){btn.disabled=true;btn.textContent='Salvataggio…';}
-
     try{
-      const {data:{session}} = await sb.auth.getSession();
-      if(!session) throw new Error('Sessione scaduta');
-
-      const poseId = lastPoseId || form.closest('[data-pose-id]')?.dataset.poseId || null;
-      if(!poseId) throw new Error('Posa non identificata: chiudi e riapri la posa');
-      const pose = await poseById(poseId);
-      const date = $('reportDate')?.value;
-      if(!date) throw new Error('Seleziona la giornata');
-
-      const completed = ($('reportCompleted')?.value || '').trim();
-      if(!completed) throw new Error('Compila "Cosa è stato fatto"');
-
-      const basePayload = {
-        report_date:date,
-        created_by:session.user.id,
-        team_id:pose.team_id,
-        hours_worked:Number($('reportHours')?.value || 0),
-        completed_work:completed,
-        remaining_work:($('reportRemaining')?.value || '').trim() || null,
-        not_completed_reason:($('reportReason')?.value || '').trim() || null,
-        issues_found:($('reportIssues')?.value || '').trim() || null,
-        materials_notes:($('reportMaterials')?.value || '').trim() || null,
-        final_notes:($('reportNotes')?.value || '').trim() || null,
-        updated_at:new Date().toISOString()
-      };
-
-      if(state) state.textContent='1/4 Salvataggio bozza…';
-      const draft = await saveCanonicalReport(pose,date,basePayload);
-      form.dataset.reportId=draft.id;
-
-      if(state) state.textContent='2/4 Collegamento posa completato…';
-      const submitted = await finalizeReport(draft.id);
-
-      if(state) state.textContent='3/4 Creazione PDF leggero…';
-      const withPdf = await savePdf(submitted,pose);
-
-      if(state) state.innerHTML=`4/4 Completato · <span class="pdf-ready">PDF archiviato</span>`;
-      form.dataset.reportId=withPdf.id;
-      toast('Rapportino salvato e PDF archiviato');
-    } catch(err){
-      const msg=err?.message || String(err);
-      if(state) state.textContent=`ERRORE: ${msg}`;
-      toast(msg);
-      console.error('PW Posa report/PDF',err);
-    } finally {
-      busy=false;
-      if(btn){btn.disabled=false;btn.textContent='Salva rapportino';}
-    }
+      const {data:{session}}=await sb.auth.getSession(); if(!session)throw new Error('Sessione scaduta');
+      const poseId=lastPoseId||form.closest('[data-pose-id]')?.dataset.poseId||null; if(!poseId)throw new Error('Posa non identificata: chiudi e riapri la posa');
+      const pose=await poseById(poseId),date=$('reportDate')?.value; if(!date)throw new Error('Seleziona la giornata');
+      const completed=($('reportCompleted')?.value||'').trim(); if(!completed)throw new Error('Compila "Cosa è stato fatto"');
+      const basePayload={report_date:date,created_by:session.user.id,team_id:pose.team_id,hours_worked:Number($('reportHours')?.value||0),completed_work:completed,remaining_work:($('reportRemaining')?.value||'').trim()||null,not_completed_reason:($('reportReason')?.value||'').trim()||null,issues_found:($('reportIssues')?.value||'').trim()||null,materials_notes:($('reportMaterials')?.value||'').trim()||null,final_notes:($('reportNotes')?.value||'').trim()||null,updated_at:new Date().toISOString()};
+      if(state)state.textContent='1/4 Salvataggio bozza…';
+      const draft=await saveCanonicalReport(pose,date,basePayload); form.dataset.reportId=draft.id;
+      if(state)state.textContent='2/4 Creazione e archivio PDF…';
+      const withPdf=await uploadPdfWhileDraft(draft,pose);
+      if(state)state.textContent='3/4 Chiusura rapportino…';
+      const submitted=await finalizeReport(withPdf);
+      if(state)state.innerHTML='4/4 Completato · <span class="pdf-ready">PDF archiviato</span>';
+      form.dataset.reportId=submitted.id; toast('Rapportino salvato e PDF archiviato');
+    }catch(err){const msg=err?.message||String(err);if(state)state.textContent=`ERRORE: ${msg}`;toast(msg);console.error('PW Posa report/PDF',err);}
+    finally{busy=false;if(btn){btn.disabled=false;btn.textContent='Salva rapportino';}}
   }
-
   document.addEventListener('submit',handleSubmit,true);
 })();
