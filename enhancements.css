@@ -30,6 +30,23 @@
 .archive-file-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center;border:1px solid var(--line);border-radius:12px;padding:12px;margin-top:8px}.archive-file-row strong,.archive-file-row span{display:block}.archive-file-row span{font-size:11px;color:var(--muted);margin-top:3px}
 .archive-photo-groups{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.archive-photo-group{border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:7px;min-width:0}.archive-photo-group>span{font-size:11px;color:var(--muted)}.archive-photo-link{border:0;background:var(--gold-soft);color:var(--black);border-radius:9px;padding:8px;text-align:left;font-size:11px;font-weight:600}.empty.compact{padding:18px}
 
+/* Calendario: 7 colonne sempre dentro la pagina e scroll verticale per le giornate dense. */
+.calendar-panel,.calendar-month-wrap{width:100%;max-width:100%;overflow-x:hidden}
+.calendar-weekdays,.calendar-grid.month-grid{grid-template-columns:repeat(7,minmax(0,1fr));min-width:0;width:100%}
+.calendar-day{height:166px;min-height:166px;display:flex;flex-direction:column;overflow:hidden}
+.calendar-day .date{flex:0 0 auto}
+.calendar-day-poses{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;touch-action:pan-y;scrollbar-gutter:stable;padding-right:2px}
+.calendar-day-poses::-webkit-scrollbar{width:5px}
+.calendar-day-poses::-webkit-scrollbar-thumb{background:#d8c7a6;border-radius:999px}
+.calendar-day-poses::-webkit-scrollbar-track{background:transparent}
+.calendar-month-title{margin:0;position:relative;display:inline-flex;align-items:center;gap:8px}
+.calendar-month-button{appearance:none;border:0;background:transparent;color:var(--ink);font:inherit;font-weight:700;padding:2px 24px 2px 0;position:relative;text-align:left}
+.calendar-month-button:after{content:'▾';position:absolute;right:3px;top:50%;transform:translateY(-52%);font-size:12px;color:var(--gold-dark)}
+.calendar-month-button:hover{color:var(--gold-dark)}
+.calendar-month-picker{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;left:0;bottom:0}
+.calendar-nav-hidden{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important;overflow:hidden!important;padding:0!important;border:0!important}
+.calendar-controls{display:flex;align-items:center;gap:8px}
+
 @media(max-width:900px){
   .app-shell{grid-template-columns:minmax(0,1fr);width:100%;max-width:100%;min-width:0}
   .sidebar{width:100%;max-width:100%;min-width:0;overflow:hidden}
@@ -49,16 +66,17 @@
   .calendar-panel,.calendar-month-wrap{width:100%;max-width:100%;overflow-x:hidden}
   .calendar-weekdays,.calendar-grid.month-grid{grid-template-columns:repeat(7,minmax(0,1fr));min-width:0;width:100%}
   .calendar-weekday{padding:7px 1px;font-size:9px;min-width:0}
-  .calendar-day{min-width:0;min-height:92px;padding:5px 3px;overflow:hidden}
+  .calendar-day{min-width:0;height:100px;min-height:100px;padding:5px 3px;overflow:hidden}
   .calendar-day .date{font-size:10px;margin-bottom:4px}
-  .calendar-day-poses{gap:3px;min-width:0}
+  .calendar-day-poses{gap:3px;min-width:0;overflow-y:auto;overflow-x:hidden}
   .pose-chip{min-width:0;padding:4px 3px;border-left-width:2px;border-radius:5px;font-size:8px;line-height:1.2;overflow:hidden}
   .pose-chip strong,.pose-chip span{min-width:0;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;word-break:break-word}
   .pose-chip span{font-size:7.5px;margin-top:1px}
   .calendar-empty{font-size:8px}
   .calendar-toolbar{width:100%;gap:10px}
   .calendar-toolbar h3{margin:0;font-size:20px}
-  .calendar-controls{display:grid;grid-template-columns:44px 1fr 44px;width:100%}
+  .calendar-controls{width:auto;display:flex}
+  .calendar-controls #calendarToday{min-width:88px}
   .installer-actions{grid-template-columns:1fr 1fr}
   .topbar{padding-right:18px}
   .archive-toolbar{align-items:stretch;flex-direction:column}.archive-toolbar input{max-width:none}.archive-grid{grid-template-columns:1fr}.archive-info-grid{grid-template-columns:1fr}.archive-file-row{grid-template-columns:1fr}.archive-photo-groups{grid-template-columns:1fr 1fr}
@@ -66,7 +84,7 @@
 
 @media(max-width:430px){
   .content{padding:10px}
-  .calendar-day{min-height:82px;padding:4px 2px}
+  .calendar-day{height:92px;min-height:92px;padding:4px 2px}
   .calendar-weekday{font-size:8px}
   .pose-chip{font-size:7px;padding:3px 2px}
   .pose-chip span{font-size:6.8px}
