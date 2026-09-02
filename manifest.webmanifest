@@ -1,9 +1,25 @@
 {
+  "id": "./",
   "name": "PW Posa",
   "short_name": "PW Posa",
+  "description": "Gestione pose Planet Windows",
   "start_url": "./",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#f4f3f1",
   "theme_color": "#c99b43",
-  "description": "Gestione pose Planet Windows"
+  "icons": [
+    {
+      "src": "app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
 }
