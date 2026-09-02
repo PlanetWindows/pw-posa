@@ -9,6 +9,7 @@
   const toast=msg=>{const el=$('toast');if(!el)return;el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),4200)};
   const safeName=v=>String(v||'file').replace(/[\\/:*?"<>|]+/g,'-').replace(/\s+/g,'_').slice(0,120);
   const fmtDate=v=>{if(!v)return '—';const [y,m,d]=String(v).split('-');return `${d}/${m}/${y}`};
+  const pad=n=>String(n).padStart(2,'0');
 
   async function getProfile(){
     if(profile) return profile;
@@ -52,10 +53,45 @@
     return p==='prima'?'Foto_Prima':p==='durante'?'Foto_Durante':p==='dopo'?'Foto_Fine_Posa':p==='segnalazione'?'Foto_Segnalazioni':'Foto_Altro';
   }
 
+  function phaseShort(phase){
+    const p=String(phase||'').toLowerCase();
+    return p==='prima'?'PRIMA':p==='durante'?'DURANTE':p==='dopo'?'FINE':p==='segnalazione'?'SEGNALAZIONE':'FOTO';
+  }
+
   function extensionFromPath(path,fallback){
     const clean=String(path||'').split('?')[0];
     const m=clean.match(/\.([a-zA-Z0-9]{2,5})$/);
     return m?`.${m[1].toLowerCase()}`:fallback;
+  }
+
+  function readablePhotoName(ph,index,ext){
+    const d=ph.created_at?new Date(ph.created_at):null;
+    const stamp=d&&!Number.isNaN(d.getTime())?`${pad(d.getDate())}-${pad(d.getMonth()+1)}-${d.getFullYear()}_${pad(d.getHours())}-${pad(d.getMinutes())}`:`foto_${pad(index+1)}`;
+    return `${phaseShort(ph.phase)}_${pad(index+1)}_${stamp}${ext}`;
+  }
+
+  async function discoverPdfPaths(poseId,reports){
+    const folder=`poses/${poseId}/rapportini`;
+    const found=new Map();
+
+    for(const r of reports){
+      const path=r.pdf_storage_path||`${folder}/${r.id}.pdf`;
+      found.set(path,{path,report:r});
+    }
+
+    const {data:list,error}=await sb.storage.from('pw-posa-documents').list(folder,{limit:100,sortBy:{column:'name',order:'asc'}});
+    if(!error){
+      for(const f of list||[]){
+        if(!f?.name||!f.name.toLowerCase().endsWith('.pdf')) continue;
+        const path=`${folder}/${f.name}`;
+        if(!found.has(path)){
+          const reportId=f.name.replace(/\.pdf$/i,'');
+          const report=reports.find(r=>String(r.id)===reportId)||null;
+          found.set(path,{path,report});
+        }
+      }
+    }
+    return [...found.values()];
   }
 
   async function exportDossier(poseId,button){
@@ -69,6 +105,7 @@
       zip.folder('Foto_Prima'); zip.folder('Foto_Durante'); zip.folder('Foto_Fine_Posa'); zip.folder('Foto_Segnalazioni');
       const missing=[];
 
+      const pdfEntries=await discoverPdfPaths(poseId,reports);
       const info=[
         'PW Posa - Fascicolo commessa',
         '',
@@ -79,30 +116,34 @@
         `Data inizio posa: ${fmtDate(pose.scheduled_date)}`,
         `Data fine posa prevista: ${fmtDate(pose.scheduled_end_date||pose.scheduled_date)}`,
         '',
-        `Rapportini: ${reports.length}`,
+        `PDF trovati: ${pdfEntries.length}`,
         `Foto: ${photos.length}`
       ].join('\r\n');
       zip.file('Dati_Commessa.txt',info);
 
-      for(let i=0;i<reports.length;i++){
-        const r=reports[i];
-        if(!r.pdf_storage_path){missing.push(`Rapportino ${r.report_number||r.id}: PDF non archiviato`);continue;}
+      for(let i=0;i<pdfEntries.length;i++){
+        const entry=pdfEntries[i];
         try{
-          const blob=await fetchStoredBlob('pw-posa-documents',r.pdf_storage_path);
-          const name=safeName(r.pdf_file_name||r.report_number||`Rapportino_${i+1}`);
-          reportsFolder.file(name.toLowerCase().endsWith('.pdf')?name:`${name}.pdf`,blob);
-        }catch(err){missing.push(`Rapportino ${r.report_number||r.id}: ${err.message}`);}
+          const blob=await fetchStoredBlob('pw-posa-documents',entry.path);
+          const r=entry.report;
+          const datePart=r?.report_date?String(r.report_date).split('-').reverse().join('-'):'';
+          const base=r?.report_number||`Rapportino_${pad(i+1)}`;
+          const filename=`${safeName(base)}${datePart?`_${datePart}`:''}.pdf`;
+          reportsFolder.file(filename,blob);
+        }catch(err){missing.push(`PDF ${entry.path}: ${err.message}`);}
       }
 
+      const phaseCounters={};
       for(let i=0;i<photos.length;i++){
         const ph=photos[i];
         if(!ph.storage_path){missing.push(`Foto ${i+1}: percorso mancante`);continue;}
         try{
           const blob=await fetchStoredBlob('pw-posa-photos',ph.storage_path);
-          const folder=zip.folder(photoFolder(ph.phase));
+          const folderName=photoFolder(ph.phase);
+          const folder=zip.folder(folderName);
+          phaseCounters[folderName]=(phaseCounters[folderName]||0)+1;
           const ext=extensionFromPath(ph.storage_path,blob.type==='image/png'?'.png':'.jpg');
-          const stamp=String(ph.created_at||'').replace(/[:.]/g,'-').replace('T','_').replace('Z','');
-          folder.file(`${safeName(stamp||`foto_${i+1}`)}${ext}`,blob);
+          folder.file(readablePhotoName(ph,phaseCounters[folderName]-1,ext),blob);
         }catch(err){missing.push(`Foto ${i+1} (${ph.phase||'senza fase'}): ${err.message}`);}
       }
 
