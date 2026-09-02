@@ -3,7 +3,7 @@
   if(!window.supabase||!cfg.SUPABASE_URL||!cfg.SUPABASE_ANON_KEY) return;
   const sb=window.supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY);
   const $=id=>document.getElementById(id);
-  const esc=v=>String(v??'').replace(/[&<>"']/g,s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[s]));
+  const esc=v=>String(v??'').replace(/[&<>"']/g,s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#039;'}[s]));
   const fmtDate=v=>{if(!v)return '—';const [y,m,d]=String(v).split('-');return `${d}/${m}/${y}`};
   const toast=msg=>{const el=$('toast');if(!el)return;el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),2800)};
   let archiveItems=[];
@@ -37,18 +37,21 @@
 
   function phaseLabel(v){
     const p=String(v||'').toLowerCase();
-    return p==='prima'?'Prima':p==='durante'?'Durante':p==='dopo'?'Dopo':p==='segnalazione'?'Segnalazione':p||'Foto';
+    return p==='prima'?'Foto prima':p==='durante'?'Foto durante':p==='dopo'?'Foto fine posa':p==='segnalazione'?'Foto segnalazione':p||'Foto';
   }
 
   function archiveCard(item){
     const p=item.pose;
-    const pdfCount=item.reports.filter(r=>r.pdf_storage_path).length;
-    return `<button type="button" class="archive-card" data-archive-pose="${esc(p.id)}">
-      <div class="archive-card-top"><div><div class="eyebrow">COMMESSA</div><strong>${esc(p.job_number)}</strong></div><span class="badge orange">Fascicolo</span></div>
-      <div class="archive-client">${esc(p.client_name)}</div>
+    return `<article class="archive-card archive-folder-card">
+      <div class="archive-card-top">
+        <div class="archive-folder-title"><span class="archive-folder-icon" aria-hidden="true">📁</span><div><div class="eyebrow">FASCICOLO COMMESSA</div><strong>POSA ${esc(p.job_number)}</strong></div></div>
+        <span class="badge orange">Fascicolo</span>
+      </div>
+      <div class="archive-client">Cliente: ${esc(p.client_name)}</div>
       <div class="archive-address">${esc(p.address||'')}${p.city?`, ${esc(p.city)}`:''}</div>
-      <div class="archive-meta"><span>${pdfCount} PDF</span><span>${item.photos.length} foto</span><span>${fmtDate(p.scheduled_date)}</span></div>
-    </button>`;
+      <div class="archive-meta"><span>${item.reports.length} rapportini</span><span>${item.photos.length} foto</span><span>${fmtDate(p.scheduled_date)}</span></div>
+      <button type="button" class="btn ghost archive-open-folder" data-archive-pose="${esc(p.id)}">Apri fascicolo</button>
+    </article>`;
   }
 
   function renderList(filter=''){
@@ -65,17 +68,24 @@
     window.open(data.signedUrl,'_blank','noopener');
   }
 
+  function photoSection(photos,phase){
+    const rows=photos.filter(ph=>String(ph.phase||'').toLowerCase()===phase);
+    return `<div class="archive-section archive-photo-section">
+      <div class="archive-section-head"><h4>${phaseLabel(phase)}</h4><span>${rows.length} foto</span></div>
+      ${rows.length?`<div class="archive-photo-list">${rows.map((ph,i)=>`<button type="button" class="archive-photo-link" data-archive-photo="${esc(ph.storage_path)}">Apri foto ${i+1}</button>`).join('')}</div>`:'<div class="empty compact">Nessuna foto.</div>'}
+    </div>`;
+  }
+
   function renderDossier(poseId){
     const item=archiveItems.find(x=>x.pose.id===poseId); if(!item) return;
     const p=item.pose;
     const host=$('archiveDossier'); if(!host) return;
     const reports=item.reports;
     const photos=item.photos;
-    const photoGroups=['prima','durante','dopo','segnalazione'];
     host.innerHTML=`
       <div class="archive-dossier-head">
-        <div><div class="eyebrow">FASCICOLO DIGITALE</div><h3>Commessa ${esc(p.job_number)}</h3><p>${esc(p.client_name)}</p></div>
-        <button class="btn ghost" type="button" id="archiveCloseDossier">Chiudi</button>
+        <div><div class="eyebrow">FASCICOLO DIGITALE COMMESSA</div><h3>POSA ${esc(p.job_number)}</h3><p>${esc(p.client_name)}</p></div>
+        <button class="btn ghost" type="button" id="archiveCloseDossier">← Torna all'archivio</button>
       </div>
       <div class="archive-info-grid">
         <div><span>Cliente</span><strong>${esc(p.client_name)}</strong></div>
@@ -84,18 +94,16 @@
         <div><span>Periodo posa</span><strong>${fmtDate(p.scheduled_date)} → ${fmtDate(p.scheduled_end_date||p.scheduled_date)}</strong></div>
       </div>
       <div class="archive-section">
-        <div class="archive-section-head"><h4>Documenti</h4><span>${reports.filter(r=>r.pdf_storage_path).length} PDF archiviati</span></div>
-        ${reports.length?reports.map(r=>`<div class="archive-file-row"><div><strong>${esc(r.report_number||'Rapportino')}</strong><span>${fmtDate(r.report_date)}${r.pdf_storage_path?' · PDF archiviato':' · PDF mancante'}</span></div>${r.pdf_storage_path?`<button class="btn ghost" type="button" data-archive-pdf="${esc(r.pdf_storage_path)}">Apri PDF</button>`:'<span class="badge">Da generare</span>'}</div>`).join(''):'<div class="empty compact">Nessun documento collegato.</div>'}
+        <div class="archive-section-head"><h4>Rapportini</h4><span>${reports.length} totali</span></div>
+        ${reports.length?reports.map(r=>`<div class="archive-file-row"><div><strong>${esc(r.report_number||'Rapportino')}</strong><span>${fmtDate(r.report_date)}${r.pdf_storage_path?' · PDF archiviato':' · PDF mancante'}</span></div>${r.pdf_storage_path?`<button class="btn ghost" type="button" data-archive-pdf="${esc(r.pdf_storage_path)}">Apri PDF</button>`:'<span class="badge">PDF mancante</span>'}</div>`).join(''):'<div class="empty compact">Nessun rapportino collegato.</div>'}
       </div>
-      <div class="archive-section">
-        <div class="archive-section-head"><h4>Foto</h4><span>${photos.length} totali</span></div>
-        <div class="archive-photo-groups">${photoGroups.map(phase=>{
-          const rows=photos.filter(ph=>String(ph.phase||'').toLowerCase()===phase);
-          return `<div class="archive-photo-group"><strong>${phaseLabel(phase)}</strong><span>${rows.length} foto</span>${rows.map((ph,i)=>`<button type="button" class="archive-photo-link" data-archive-photo="${esc(ph.storage_path)}">Apri foto ${i+1}</button>`).join('')}</div>`;
-        }).join('')}</div>
-      </div>`;
+      ${photoSection(photos,'prima')}
+      ${photoSection(photos,'durante')}
+      ${photoSection(photos,'dopo')}
+      ${photoSection(photos,'segnalazione')}`;
     host.classList.remove('hidden');
-    $('archiveCloseDossier')?.addEventListener('click',()=>host.classList.add('hidden'));
+    $('archiveList')?.classList.add('archive-list-dimmed');
+    $('archiveCloseDossier')?.addEventListener('click',()=>{host.classList.add('hidden');$('archiveList')?.classList.remove('archive-list-dimmed');});
     host.querySelectorAll('[data-archive-pdf]').forEach(btn=>btn.addEventListener('click',async()=>{try{await openStored('pw-posa-documents',btn.dataset.archivePdf)}catch(err){toast(err.message)}}));
     host.querySelectorAll('[data-archive-photo]').forEach(btn=>btn.addEventListener('click',async()=>{try{await openStored('pw-posa-photos',btn.dataset.archivePhoto)}catch(err){toast(err.message)}}));
   }
