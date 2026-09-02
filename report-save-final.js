@@ -1,9 +1,11 @@
 (() => {
   const cfg = window.PW_POSA_CONFIG || {};
   if (!window.supabase || !cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY) return;
+
   const sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
-  let lastPoseId = null;
   const $ = id => document.getElementById(id);
+  let lastPoseId = null;
+  let busy = false;
 
   document.addEventListener('click', e => {
     const el = e.target.closest('[data-pose]');
@@ -15,7 +17,7 @@
     if (!el) return;
     el.textContent = msg;
     el.classList.add('show');
-    setTimeout(() => el.classList.remove('show'), 4500);
+    setTimeout(() => el.classList.remove('show'), 5000);
   };
 
   async function poseById(id){
@@ -73,8 +75,8 @@
 
   async function savePdf(report,pose){
     const blob = await makePdf(report,pose);
-    const path = `poses/${pose.id}/rapportini/${report.id}-${Date.now()}.pdf`;
-    const {error:ue} = await sb.storage.from('pw-posa-documents').upload(path,blob,{contentType:'application/pdf',upsert:false});
+    const path = `poses/${pose.id}/rapportini/${report.id}.pdf`;
+    const {error:ue} = await sb.storage.from('pw-posa-documents').upload(path,blob,{contentType:'application/pdf',upsert:true});
     if(ue) throw new Error(`PDF upload Storage: ${ue.message}`);
     const filename = `${report.report_number || report.id}.pdf`.replace(/[^a-zA-Z0-9._-]+/g,'-');
     const generatedAt = new Date().toISOString();
@@ -83,19 +85,63 @@
     return data;
   }
 
+  async function saveCanonicalReport(pose,date,basePayload){
+    const targetNumber = numberFor(pose,date);
+    const linked = await linkedReportForDay(pose.id,date);
+    const byNumber = await reportByNumber(targetNumber);
+
+    // Se il numero univoco esiste, QUEL record è sempre il canonico.
+    // Altrimenti usiamo il record già collegato alla posa/giornata.
+    let canonical = byNumber || linked || null;
+
+    if(canonical){
+      const payload = {...basePayload};
+      // Non riscriviamo mai report_number su un record esistente: evita qualsiasi conflitto UNIQUE.
+      const {data,error} = await sb.from('daily_reports').update(payload).eq('id',canonical.id).select('*').single();
+      if(error) throw new Error(`Rapportino update: ${error.message}`);
+      await ensureLink(data.id,pose.id);
+      return data;
+    }
+
+    const insertPayload = {...basePayload, report_number:targetNumber};
+    let {data,error} = await sb.from('daily_reports').insert(insertPayload).select('*').single();
+
+    // Protezione anche contro race/doppio tap: se nel frattempo qualcuno ha creato lo stesso numero,
+    // recuperiamo quel record e lo aggiorniamo invece di fallire.
+    if(error && (error.code === '23505' || String(error.message||'').includes('daily_reports_report_number_key'))){
+      const existing = await reportByNumber(targetNumber);
+      if(!existing) throw new Error(`Rapportino insert: ${error.message}`);
+      const retry = await sb.from('daily_reports').update(basePayload).eq('id',existing.id).select('*').single();
+      if(retry.error) throw new Error(`Rapportino recupero duplicato: ${retry.error.message}`);
+      data = retry.data;
+      error = null;
+    }
+    if(error) throw new Error(`Rapportino insert: ${error.message}`);
+    await ensureLink(data.id,pose.id);
+    return data;
+  }
+
   async function handleSubmit(e){
+    if(e.target?.id !== 'dailyReportForm') return;
+
+    // IMPORTANTE: questo listener è sul document in CAPTURE, quindi blocca prima di tutto
+    // i vecchi handler presenti in reports.js. In questo modo esiste UN SOLO salvataggio.
     e.preventDefault();
     e.stopImmediatePropagation();
-    const form = e.currentTarget;
-    if(form.dataset.finalSaving === '1') return;
-    form.dataset.finalSaving='1';
+
+    if(busy) return;
+    busy = true;
+
+    const form = e.target;
     const btn=form.querySelector('button[type="submit"]');
     const state=$('reportState');
     if(btn){btn.disabled=true;btn.textContent='Salvataggio…';}
+
     try{
       const {data:{session}} = await sb.auth.getSession();
       if(!session) throw new Error('Sessione scaduta');
-      const poseId = lastPoseId || document.querySelector('[data-pose].active')?.dataset.pose || null;
+
+      const poseId = lastPoseId || form.closest('[data-pose-id]')?.dataset.poseId || null;
       if(!poseId) throw new Error('Posa non identificata: chiudi e riapri la posa');
       const pose = await poseById(poseId);
       const date = $('reportDate')?.value;
@@ -112,31 +158,14 @@
         issues_found:($('reportIssues')?.value || '').trim() || null,
         materials_notes:($('reportMaterials')?.value || '').trim() || null,
         final_notes:($('reportNotes')?.value || '').trim() || null,
-        status:'submitted', submitted_at:new Date().toISOString(), updated_at:new Date().toISOString()
+        status:'submitted',
+        submitted_at:new Date().toISOString(),
+        updated_at:new Date().toISOString()
       };
 
-      const targetNumber = numberFor(pose,date);
-      const [linked,byNumber] = await Promise.all([linkedReportForDay(pose.id,date),reportByNumber(targetNumber)]);
-      let canonical = linked || byNumber || null;
-
-      if(linked && byNumber && linked.id !== byNumber.id){
-        canonical = byNumber;
-        await ensureLink(canonical.id,pose.id);
-      }
-
-      let saved;
-      if(canonical){
-        const {data,error} = await sb.from('daily_reports').update(basePayload).eq('id',canonical.id).select('*').single();
-        if(error) throw new Error(`Rapportino update: ${error.message}`);
-        saved = data;
-      } else {
-        const {data,error} = await sb.from('daily_reports').insert({...basePayload,report_number:targetNumber}).select('*').single();
-        if(error) throw new Error(`Rapportino insert: ${error.message}`);
-        saved = data;
-      }
-
-      await ensureLink(saved.id,pose.id);
+      const saved = await saveCanonicalReport(pose,date,basePayload);
       form.dataset.reportId=saved.id;
+
       if(state) state.textContent='Rapportino salvato. Generazione PDF…';
       await savePdf(saved,pose);
       if(state) state.innerHTML='Rapportino salvato · <span class="pdf-ready">PDF archiviato</span>';
@@ -145,20 +174,12 @@
       const msg=err?.message || String(err);
       if(state) state.textContent=msg;
       toast(msg);
-      console.error('PW Posa final report save',err);
+      console.error('PW Posa authoritative report save',err);
     } finally {
-      form.dataset.finalSaving='0';
+      busy=false;
       if(btn){btn.disabled=false;btn.textContent='Salva rapportino';}
     }
   }
 
-  function attach(){
-    const form=$('dailyReportForm');
-    if(!form || form.dataset.finalHandler==='1') return;
-    form.dataset.finalHandler='1';
-    form.addEventListener('submit',handleSubmit,true);
-  }
-
-  new MutationObserver(attach).observe(document.body,{subtree:true,childList:true});
-  document.addEventListener('DOMContentLoaded',attach);
+  document.addEventListener('submit',handleSubmit,true);
 })();
