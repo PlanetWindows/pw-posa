@@ -7,7 +7,7 @@
   let currentPoseId = null;
   let currentProfile = null;
 
-  const esc = (v) => String(v ?? "").replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#039;'}[s]));
+  const esc = (v) => String(v ?? "").replace(/[&<>"']/g, s => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[s]));
   const fmtDate = (v) => { if(!v) return "—"; const [y,m,d]=String(v).split("-"); return `${d}/${m}/${y}`; };
   const todayIso = () => { const d=new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`; };
   const toast = (msg) => {
@@ -44,6 +44,26 @@
     return data?.[0] || null;
   }
 
+  function makeReportNumber(pose, reportDate){
+    const job=String(pose.job_number||"POSA").replace(/[^a-zA-Z0-9]+/g,"").slice(0,14) || "POSA";
+    const poseToken=String(pose.id||"").replace(/-/g,"").slice(0,8).toUpperCase();
+    return `RAP-${String(reportDate).replaceAll("-","")}-${job}-${poseToken}`;
+  }
+
+  async function findReportByNumber(reportNumber){
+    const {data,error}=await sbReports.from("daily_reports").select("*").eq("report_number",reportNumber).limit(1);
+    if(error) throw error;
+    return data?.[0] || null;
+  }
+
+  async function ensureReportLink(reportId,poseId){
+    const {data,error}=await sbReports.from("daily_report_poses").select("report_id,pose_id").eq("report_id",reportId).eq("pose_id",poseId).limit(1);
+    if(error) throw error;
+    if(data?.length) return;
+    const {error:insertError}=await sbReports.from("daily_report_poses").insert({report_id:reportId,pose_id:poseId});
+    if(insertError) throw insertError;
+  }
+
   async function logoDataUrl(){
     return new Promise(resolve=>{
       const img=new Image();
@@ -61,7 +81,7 @@
         }catch(_){ resolve(null); }
       };
       img.onerror=()=>resolve(null);
-      img.src="logo_planet.svg?v=report-pdf3";
+      img.src="logo_planet.svg?v=report-pdf4";
     });
   }
 
@@ -111,10 +131,9 @@
 
   async function persistPdf(report,pose){
     const blob=await buildPdfBlob(report,pose);
-    const stamp=Date.now();
     const filename=`${report.report_number||report.id}.pdf`.replace(/[^a-zA-Z0-9._-]+/g,"-");
-    const path=`poses/${pose.id}/rapportini/${report.id}-${stamp}.pdf`;
-    const {error:uploadError}=await sbReports.storage.from("pw-posa-documents").upload(path,blob,{contentType:"application/pdf",upsert:false});
+    const path=report.pdf_storage_path || `poses/${pose.id}/rapportini/${report.id}.pdf`;
+    const {error:uploadError}=await sbReports.storage.from("pw-posa-documents").upload(path,blob,{contentType:"application/pdf",upsert:true});
     if(uploadError) throw new Error(`PDF non archiviato: ${uploadError.message}`);
     const generatedAt=new Date().toISOString();
     const {error:updateError}=await sbReports.from("daily_reports").update({pdf_storage_path:path,pdf_file_name:filename,pdf_generated_at:generatedAt}).eq("id",report.id);
@@ -190,38 +209,75 @@
     $("dailyReportForm").addEventListener("submit",async(e)=>{
       e.preventDefault();
       const form=e.currentTarget;
+      if(form.dataset.saving==="1") return;
+      form.dataset.saving="1";
       const btn=form.querySelector('button[type="submit"]');
       if(btn){btn.disabled=true;btn.textContent="Salvataggio…";}
       try{
         const {data:{session}}=await sbReports.auth.getSession();
         if(!session) throw new Error("Sessione scaduta");
-        const reportId=form.dataset.reportId;
         const reportDate=$("reportDate").value;
+        const reportNumber=makeReportNumber(pose,reportDate);
         const payload={
           report_date:reportDate, created_by:session.user.id, team_id:pose.team_id,
           hours_worked:Number($("reportHours").value), completed_work:$("reportCompleted").value.trim(),
           remaining_work:$("reportRemaining").value.trim()||null, not_completed_reason:$("reportReason").value.trim()||null,
           issues_found:$("reportIssues").value.trim()||null, materials_notes:$("reportMaterials").value.trim()||null,
           final_notes:$("reportNotes").value.trim()||null, status:"submitted", submitted_at:new Date().toISOString(),
-          updated_at:new Date().toISOString(), report_number:`RAP-${reportDate.replaceAll('-','')}-${String(pose.job_number||'POSA').replace(/\s+/g,'').slice(0,18)}`
+          updated_at:new Date().toISOString(), report_number:reportNumber
         };
-        let saved,error;
-        if(reportId) ({data:saved,error}=await sbReports.from("daily_reports").update(payload).eq("id",reportId).select("*").single());
-        else ({data:saved,error}=await sbReports.from("daily_reports").insert(payload).select("*").single());
-        if(error) throw error;
+
+        let saved=null;
+        let reportId=form.dataset.reportId||"";
+
         if(!reportId){
-          const {error:linkError}=await sbReports.from("daily_report_poses").insert({report_id:saved.id,pose_id:pose.id});
-          if(linkError) throw linkError;
-          form.dataset.reportId=saved.id;
+          const alreadyForDay=await findReportForDay(pose.id,reportDate);
+          if(alreadyForDay){
+            reportId=alreadyForDay.id;
+            form.dataset.reportId=reportId;
+          }
         }
+
+        if(!reportId){
+          const orphanOrExisting=await findReportByNumber(reportNumber);
+          if(orphanOrExisting){
+            reportId=orphanOrExisting.id;
+            form.dataset.reportId=reportId;
+            await ensureReportLink(reportId,pose.id);
+          }
+        }
+
+        if(reportId){
+          const {data,error}=await sbReports.from("daily_reports").update(payload).eq("id",reportId).select("*").single();
+          if(error) throw error;
+          saved=data;
+          await ensureReportLink(saved.id,pose.id);
+        }else{
+          let {data,error}=await sbReports.from("daily_reports").insert(payload).select("*").single();
+          if(error && (error.code==="23505" || String(error.message||"").includes("daily_reports_report_number_key"))){
+            const existing=await findReportByNumber(reportNumber);
+            if(!existing) throw error;
+            const retry=await sbReports.from("daily_reports").update(payload).eq("id",existing.id).select("*").single();
+            if(retry.error) throw retry.error;
+            data=retry.data;
+            error=null;
+          }
+          if(error) throw error;
+          saved=data;
+          form.dataset.reportId=saved.id;
+          await ensureReportLink(saved.id,pose.id);
+        }
+
         $("reportState").textContent="Rapportino salvato. Generazione PDF…";
-        await persistPdf(saved,pose);
+        const pdf=await persistPdf(saved,pose);
+        saved={...saved,pdf_storage_path:pdf.path,pdf_file_name:pdf.filename,pdf_generated_at:pdf.generatedAt};
         $("reportState").innerHTML='Rapportino salvato · <span class="pdf-ready">PDF archiviato</span>';
         toast("Rapportino salvato e PDF archiviato");
       }catch(err){
         $("reportState").textContent=err.message;
         toast(err.message);
       }finally{
+        form.dataset.saving="0";
         if(btn){btn.disabled=false;btn.textContent="Salva rapportino";}
       }
     });
@@ -250,7 +306,8 @@
       sbReports.from("daily_reports").select("*").eq("id",reportId).single(),
       sbReports.from("poses").select("*").eq("id",poseId).single()
     ]);
-    if(re) throw re; if(pe) throw pe;
+    if(re) throw re;
+    if(pe) throw pe;
     await persistPdf(r,p);
   }
 
@@ -274,8 +331,14 @@
         </div>`;
       content.querySelectorAll("[data-report-pdf]").forEach(btn=>btn.addEventListener("click",async()=>{try{await openStoredPdf(btn.dataset.reportPdf)}catch(err){toast(err.message)}}));
       content.querySelectorAll("[data-generate-pdf]").forEach(btn=>btn.addEventListener("click",async()=>{
-        const old=btn.textContent;btn.disabled=true;btn.textContent="Generazione…";
-        try{await regeneratePdf(btn.dataset.generatePdf,btn.dataset.poseId);toast("PDF archiviato");await renderDocuments();}catch(err){toast(err.message);btn.disabled=false;btn.textContent=old;}
+        const old=btn.textContent; btn.disabled=true; btn.textContent="Generazione…";
+        try{
+          await regeneratePdf(btn.dataset.generatePdf,btn.dataset.poseId);
+          toast("PDF archiviato");
+          await renderDocuments();
+        }catch(err){
+          toast(err.message); btn.disabled=false; btn.textContent=old;
+        }
       }));
     }catch(err){ content.innerHTML=`<div class="panel"><div class="empty">${esc(err.message)}</div></div>`; }
   }
