@@ -24,9 +24,7 @@
     <form id="poseForm" method="dialog" class="modal-layout">
       <div class="dialog-head modal-header"><div class="dialog-title-wrap"><div class="eyebrow">PROGRAMMAZIONE</div><h3 id="poseDialogTitle">Nuova posa</h3></div><button type="button" class="icon-btn" id="closePoseDialog" aria-label="Chiudi">×</button></div>
       <input type="hidden" id="poseId" />
-      <div class="modal-scroll" id="poseModalScroll"><div class="grid2">
-          <label>Commessa *<input id="jobNumber" required /></label><label>Cliente *<input id="clientName" required /></label><label>Telefono<input id="clientPhone" /></label><label>Squadra *<select id="teamId" required></select></label><label>Finanziamento<select id="financing" required><option value="false">No</option><option value="true">Sì</option></select></label><label class="span2">Indirizzo *<input id="address" required /></label><label>Città<input id="city" /></label><label>CAP<input id="postalCode" /></label><label>Data inizio posa *<input id="scheduledDate" type="date" required /></label><label>Data fine posa prevista *<input id="scheduledEndDate" type="date" required /></label><label>Ora inizio *<input id="startTime" type="time" required /></label><label>Ora fine<input id="endTime" type="time" /></label><label class="span2">Note ufficio<textarea id="officeNotes" rows="3"></textarea></label>
-        </div></div>
+      <div class="modal-scroll" id="poseModalScroll"><div class="grid2"><label>Commessa *<input id="jobNumber" required /></label><label>Cliente *<input id="clientName" required /></label><label>Telefono<input id="clientPhone" /></label><label>Squadra *<select id="teamId" required></select></label><label>Finanziamento<select id="financing" required><option value="false">No</option><option value="true">Sì</option></select></label><label class="span2">Indirizzo *<input id="address" required /></label><label>Città<input id="city" /></label><label>CAP<input id="postalCode" /></label><label>Data inizio posa *<input id="scheduledDate" type="date" required /></label><label>Data fine posa prevista *<input id="scheduledEndDate" type="date" required /></label><label>Ora inizio *<input id="startTime" type="time" required /></label><label>Ora fine<input id="endTime" type="time" /></label><label class="span2">Note ufficio<textarea id="officeNotes" rows="3"></textarea></label></div></div>
       <div class="dialog-actions modal-footer"><button type="button" class="btn ghost" id="cancelPoseBtn">Annulla</button><button type="submit" class="btn primary">Salva posa</button></div>
     </form>
   </dialog>
@@ -41,6 +39,7 @@
   <script src="archive.js?v=20260902-1"></script>
   <script src="archive-fixes.js?v=20260902-viewer2"></script>
   <script src="pdf-storage-bridge.js?v=20260902-bridge1"></script>
+  <script src="pdf-open-fix.js?v=20260902-open1"></script>
   <script src="state-persist.js?v=20260902-1"></script>
 </body>
 </html>
