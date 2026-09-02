@@ -17,13 +17,39 @@
     return data;
   }
 
-  async function openStored(bucket,path){
+  async function signedUrl(bucket,path){
     const {data,error} = await sb.storage.from(bucket).createSignedUrl(path,300);
     if(error) throw error;
     if(!data?.signedUrl) throw new Error('Link file non disponibile');
-    // Su smartphone window.open dopo una await viene spesso bloccato come popup.
-    // La navigazione nella stessa scheda è affidabile e il tasto Indietro riporta all'Archivio.
-    window.location.assign(data.signedUrl);
+    return data.signedUrl;
+  }
+
+  function ensurePhotoViewer(){
+    let viewer=$('archivePhotoViewer');
+    if(viewer) return viewer;
+    viewer=document.createElement('dialog');
+    viewer.id='archivePhotoViewer';
+    viewer.className='archive-photo-viewer';
+    viewer.innerHTML=`<div class="archive-photo-viewer-inner"><button type="button" class="archive-photo-close" id="archivePhotoClose" aria-label="Chiudi foto">×</button><img id="archivePhotoImage" alt="Foto archivio" /></div>`;
+    document.body.appendChild(viewer);
+    const close=()=>{ if(viewer.open) viewer.close(); const img=$('archivePhotoImage'); if(img) img.removeAttribute('src'); };
+    $('archivePhotoClose').addEventListener('click',close);
+    viewer.addEventListener('click',e=>{ if(e.target===viewer) close(); });
+    viewer.addEventListener('cancel',e=>{ e.preventDefault(); close(); });
+    return viewer;
+  }
+
+  async function openPhoto(path){
+    const url=await signedUrl('pw-posa-photos',path);
+    const viewer=ensurePhotoViewer();
+    const img=$('archivePhotoImage');
+    img.src=url;
+    if(!viewer.open) viewer.showModal();
+  }
+
+  async function openPdf(path){
+    const url=await signedUrl('pw-posa-documents',path);
+    window.open(url,'_blank','noopener');
   }
 
   document.addEventListener('click', async e => {
@@ -33,14 +59,14 @@
     const photo = e.target.closest('[data-archive-photo]');
     if(photo){
       e.preventDefault(); e.stopImmediatePropagation();
-      try{ await openStored('pw-posa-photos', photo.dataset.archivePhoto); }
+      try{ await openPhoto(photo.dataset.archivePhoto); }
       catch(err){ toast(`Foto: ${err.message}`); }
       return;
     }
     const pdf = e.target.closest('[data-archive-pdf]');
     if(pdf){
       e.preventDefault(); e.stopImmediatePropagation();
-      try{ await openStored('pw-posa-documents', pdf.dataset.archivePdf); }
+      try{ await openPdf(pdf.dataset.archivePdf); }
       catch(err){ toast(`PDF: ${err.message}`); }
       return;
     }
