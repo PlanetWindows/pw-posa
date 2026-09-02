@@ -1,0 +1,45 @@
+/* PW Posa enhancements: mobile calendar, photo upload and document states. */
+
+.photo-phase-card{position:relative;display:flex;flex-direction:column;gap:8px;min-height:118px}
+.photo-phase-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.photo-add-btn{width:38px;height:38px;border-radius:999px;border:1px solid var(--gold);background:var(--gold);color:#fff;font-size:24px;line-height:1;display:inline-flex;align-items:center;justify-content:center;font-weight:500;flex:0 0 38px}
+.photo-add-btn:hover{background:var(--gold-dark);border-color:var(--gold-dark)}
+.photo-upload-status{font-size:11px;color:var(--muted);min-height:16px}
+.photo-choice{border:0;border-radius:18px;padding:0;width:min(390px,calc(100vw - 28px));box-shadow:0 24px 70px rgba(33,29,30,.22);background:#fff}
+.photo-choice::backdrop{background:rgba(30,27,27,.46)}
+.photo-choice-inner{padding:22px}
+.photo-choice-inner h3{margin:0 0 6px;font-size:20px}
+.photo-choice-actions{display:grid;gap:10px;margin-top:18px}
+.photo-choice-actions .btn{width:100%;text-align:left}
+.photo-choice-close{margin-top:10px;width:100%}
+.range-chip{opacity:.9;border-left-color:var(--gold-dark)}
+.range-chip .range-label{font-size:9px;color:var(--muted);margin-top:2px}
+.pdf-ready{color:var(--green);font-weight:600}
+
+@media(max-width:700px){
+  html,body{max-width:100%;overflow-x:hidden}
+  .content{max-width:100vw;overflow-x:hidden}
+  .calendar-panel,.calendar-month-wrap{width:100%;max-width:100%;overflow-x:hidden}
+  .calendar-weekdays,.calendar-grid.month-grid{grid-template-columns:repeat(7,minmax(0,1fr));min-width:0;width:100%}
+  .calendar-weekday{padding:7px 1px;font-size:9px;min-width:0}
+  .calendar-day{min-width:0;min-height:92px;padding:5px 3px;overflow:hidden}
+  .calendar-day .date{font-size:10px;margin-bottom:4px}
+  .calendar-day-poses{gap:3px;min-width:0}
+  .pose-chip{min-width:0;padding:4px 3px;border-left-width:2px;border-radius:5px;font-size:8px;line-height:1.2;overflow:hidden}
+  .pose-chip strong,.pose-chip span{min-width:0;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;word-break:break-word}
+  .pose-chip span{font-size:7.5px;margin-top:1px}
+  .calendar-empty{font-size:8px}
+  .calendar-toolbar{width:100%;gap:10px}
+  .calendar-toolbar h3{margin:0;font-size:20px}
+  .calendar-controls{display:grid;grid-template-columns:44px 1fr 44px;width:100%}
+  .installer-actions{grid-template-columns:1fr 1fr}
+}
+
+@media(max-width:430px){
+  .content{padding:10px}
+  .calendar-day{min-height:82px;padding:4px 2px}
+  .calendar-weekday{font-size:8px}
+  .pose-chip{font-size:7px;padding:3px 2px}
+  .pose-chip span{font-size:6.8px}
+  .installer-actions{grid-template-columns:1fr}
+}
