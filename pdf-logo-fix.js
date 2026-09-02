@@ -1,9 +1,7 @@
 (() => {
-  const jsPDF = window.jspdf?.jsPDF;
-  if (!jsPDF?.API) return;
+  const OriginalJsPDF = window.jspdf?.jsPDF;
+  if (!OriginalJsPDF) return;
 
-  // Il file logo_planet.svg presente nel repository corrisponde al logo
-  // vettoriale ufficiale Planet Windows (rapporto originale 798.8345 / 193.403).
   const OFFICIAL_RATIO = 798.8345 / 193.403;
   let logoDataUrl = null;
   let logoRatio = OFFICIAL_RATIO;
@@ -26,29 +24,38 @@
       console.warn('PW Posa: impossibile preparare il logo PDF', err);
     }
   };
-  img.src = 'logo_planet.svg?v=20260902-official-logo1';
+  img.src = 'logo_planet.svg?v=20260902-official-logo2';
 
-  const originalText = jsPDF.API.text;
-  jsPDF.API.text = function(text, x, y, options, transform) {
-    // Nel PDF automatico sostituisce SOLO la vecchia scritta PLANET WINDOWS
-    // con il logo ufficiale, senza toccare nessun'altra parte del documento.
-    if (text === 'PLANET WINDOWS' && Number(x) === 14 && Number(y) === 31 && logoDataUrl) {
-      const width = 55;
-      const height = width / logoRatio;
-      this.addImage(logoDataUrl, 'PNG', 14, 22.5, width, height);
-      return this;
-    }
-    return originalText.call(this, text, x, y, options, transform);
-  };
+  function PatchedJsPDF(...args) {
+    const doc = new OriginalJsPDF(...args);
 
-  const originalAddImage = jsPDF.API.addImage;
-  jsPDF.API.addImage = function(imageData, format, x, y, width, height, ...rest) {
-    // Protezione per il vecchio percorso "Genera PDF": prima usava 55x18 mm,
-    // deformando il logo. Mantiene la stessa larghezza e ricava l'altezza
-    // esclusivamente dal rapporto originale.
-    if (Number(x) === 14 && Number(y) === 10 && Number(width) === 55 && Number(height) === 18) {
-      height = Number(width) / logoRatio;
+    const originalText = doc.text?.bind(doc);
+    if (originalText) {
+      doc.text = function(text, x, y, ...rest) {
+        if (text === 'PLANET WINDOWS' && Number(x) === 14 && Number(y) === 31 && logoDataUrl) {
+          const width = 55;
+          const height = width / logoRatio;
+          doc.addImage(logoDataUrl, 'PNG', 14, 22.5, width, height);
+          return doc;
+        }
+        return originalText(text, x, y, ...rest);
+      };
     }
-    return originalAddImage.call(this, imageData, format, x, y, width, height, ...rest);
-  };
+
+    const originalAddImage = doc.addImage?.bind(doc);
+    if (originalAddImage) {
+      doc.addImage = function(imageData, format, x, y, width, height, ...rest) {
+        if (Number(x) === 14 && Number(y) === 10 && Number(width) === 55 && Number(height) === 18) {
+          height = Number(width) / logoRatio;
+        }
+        return originalAddImage(imageData, format, x, y, width, height, ...rest);
+      };
+    }
+
+    return doc;
+  }
+
+  Object.assign(PatchedJsPDF, OriginalJsPDF);
+  PatchedJsPDF.API = OriginalJsPDF.API;
+  window.jspdf.jsPDF = PatchedJsPDF;
 })();
