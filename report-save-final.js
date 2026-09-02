@@ -52,9 +52,19 @@
     if(ie && ie.code !== '23505') throw new Error(`Collegamento posa/rapportino: ${ie.message}`);
   }
 
+  async function finalizeReport(reportId){
+    const {data,error} = await sb.from('daily_reports')
+      .update({status:'submitted',submitted_at:new Date().toISOString(),updated_at:new Date().toISOString()})
+      .eq('id',reportId)
+      .select('*')
+      .single();
+    if(error) throw new Error(`Invio rapportino: ${error.message}`);
+    return data;
+  }
+
   async function makePdf(report,pose){
     if(!window.jspdf?.jsPDF) throw new Error('PDF: libreria jsPDF non disponibile');
-    const doc = new window.jspdf.jsPDF({unit:'mm',format:'a4'});
+    const doc = new window.jspdf.jsPDF({unit:'mm',format:'a4',compress:true});
     const gold=[201,155,67], black=[33,29,30];
     doc.setDrawColor(...gold); doc.setLineWidth(1); doc.line(14,20,196,20);
     doc.setTextColor(...black); doc.setFont('helvetica','bold'); doc.setFontSize(17);
@@ -120,7 +130,7 @@
     const existing = await linkedReportForDay(pose.id,date);
 
     if(existing){
-      const {data,error} = await sb.from('daily_reports').update(basePayload).eq('id',existing.id).select('*').single();
+      const {data,error} = await sb.from('daily_reports').update({...basePayload,status:'draft',submitted_at:null}).eq('id',existing.id).select('*').single();
       if(error) throw new Error(`Rapportino update: ${error.message}`);
       await ensureLink(data.id,pose.id);
       return data;
@@ -129,7 +139,7 @@
     for(let attempt=0; attempt<3; attempt++){
       const report_number = uniqueReportNumber(pose,date);
       const {data,error} = await sb.from('daily_reports')
-        .insert({...basePayload,report_number})
+        .insert({...basePayload,status:'draft',submitted_at:null,report_number})
         .select('*').single();
       if(!error){
         await ensureLink(data.id,pose.id);
@@ -185,19 +195,20 @@
         issues_found:($('reportIssues')?.value || '').trim() || null,
         materials_notes:($('reportMaterials')?.value || '').trim() || null,
         final_notes:($('reportNotes')?.value || '').trim() || null,
-        status:'submitted',
-        submitted_at:new Date().toISOString(),
         updated_at:new Date().toISOString()
       };
 
-      if(state) state.textContent='1/3 Salvataggio rapportino…';
-      const saved = await saveCanonicalReport(pose,date,basePayload);
-      form.dataset.reportId=saved.id;
+      if(state) state.textContent='1/4 Salvataggio bozza…';
+      const draft = await saveCanonicalReport(pose,date,basePayload);
+      form.dataset.reportId=draft.id;
 
-      if(state) state.textContent='2/3 Creazione PDF…';
-      const withPdf = await savePdf(saved,pose);
+      if(state) state.textContent='2/4 Collegamento posa completato…';
+      const submitted = await finalizeReport(draft.id);
 
-      if(state) state.innerHTML=`3/3 Completato · <span class="pdf-ready">PDF archiviato</span>`;
+      if(state) state.textContent='3/4 Creazione PDF leggero…';
+      const withPdf = await savePdf(submitted,pose);
+
+      if(state) state.innerHTML=`4/4 Completato · <span class="pdf-ready">PDF archiviato</span>`;
       form.dataset.reportId=withPdf.id;
       toast('Rapportino salvato e PDF archiviato');
     } catch(err){
