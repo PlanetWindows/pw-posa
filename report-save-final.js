@@ -126,8 +126,6 @@
       return data;
     }
 
-    // IMPORTANTE: per un nuovo rapportino usiamo SEMPRE un numero realmente univoco.
-    // Non riutilizziamo più un numero deterministico che può scontrarsi con record storici/orfani.
     for(let attempt=0; attempt<3; attempt++){
       const report_number = uniqueReportNumber(pose,date);
       const {data,error} = await sb.from('daily_reports')
@@ -137,10 +135,18 @@
         await ensureLink(data.id,pose.id);
         return data;
       }
-      const duplicate = error.code === '23505' || String(error.message||'').includes('daily_reports_report_number_key');
-      if(!duplicate) throw new Error(`Rapportino insert: ${error.message}`);
+
+      const message = String(error.message || '');
+      const isReportNumberDuplicate = error.code === '23505' && message.includes('daily_reports_report_number_key');
+      if(isReportNumberDuplicate) continue;
+
+      if(error.code === '23505' && message.includes('daily_reports_report_date_created_by_key')){
+        throw new Error('Rapportino insert: vincolo database errato daily_reports_report_date_created_by_key. Esegui la query SQL indicata in chat per rimuoverlo.');
+      }
+
+      throw new Error(`Rapportino insert: ${message}`);
     }
-    throw new Error('Rapportino insert: impossibile creare un numero univoco dopo 3 tentativi');
+    throw new Error('Rapportino insert: impossibile creare un report_number univoco dopo 3 tentativi');
   }
 
   async function handleSubmit(e){
