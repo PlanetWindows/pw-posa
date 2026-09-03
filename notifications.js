@@ -40,7 +40,6 @@
     const p256dh = json.keys?.p256dh;
     const auth = json.keys?.auth;
     if (!endpoint || !p256dh || !auth) throw new Error('Dati della sottoscrizione push incompleti.');
-
     const { error } = await pushSb.rpc('register_push_subscription', {
       p_endpoint: endpoint,
       p_p256dh: p256dh,
@@ -54,11 +53,9 @@
     const user = await currentUser();
     if (!user) throw new Error('Accedi a PW Posa prima di attivare le notifiche.');
     if (!('Notification' in window) || !('PushManager' in window)) throw new Error('Le notifiche push non sono supportate da questo browser/dispositivo.');
-
     let permission = Notification.permission;
     if (permission === 'default') permission = await Notification.requestPermission();
     if (permission !== 'granted') throw new Error('Permesso notifiche non concesso.');
-
     const registration = await getRegistration();
     let subscription = await registration.pushManager.getSubscription();
     if (!subscription) {
@@ -75,18 +72,10 @@
     const user = await currentUser();
     const registration = await getRegistration();
     const subscription = await registration.pushManager.getSubscription();
-    if (!subscription) {
-      await clearAppBadge();
-      return;
-    }
+    if (!subscription) { await clearAppBadge(); return; }
     const endpoint = subscription.endpoint;
-
     if (user && endpoint) {
-      const { error } = await pushSb
-        .from('push_subscriptions')
-        .delete()
-        .eq('user_id', user.id)
-        .eq('endpoint', endpoint);
+      const { error } = await pushSb.from('push_subscriptions').delete().eq('user_id', user.id).eq('endpoint', endpoint);
       if (error) throw error;
     }
     await subscription.unsubscribe();
@@ -94,13 +83,9 @@
   }
 
   async function clearAppBadge() {
-    if (document.visibilityState !== 'visible') return;
     try {
-      const user = await currentUser();
-      if (!user) return;
       if ('clearAppBadge' in navigator) await navigator.clearAppBadge();
       else if ('setAppBadge' in navigator) await navigator.setAppBadge(0);
-
       const registration = await getRegistration();
       const worker = registration.active || registration.waiting || registration.installing;
       worker?.postMessage({ type: 'PW_POSA_CLEAR_BADGE' });
@@ -126,7 +111,6 @@
     const topbarActions = document.querySelector('.topbar-actions');
     const target = mobileQuery.matches ? topbarActions : sidebarFooter;
     if (!target) return;
-
     const anchor = mobileQuery.matches ? document.getElementById('topLogoutBtn') : target.firstChild;
     if (button.parentElement !== target) target.insertBefore(button, anchor || null);
     if (testButton && testButton.parentElement !== target) target.insertBefore(testButton, button.nextSibling);
@@ -136,109 +120,70 @@
     if (!button) return;
     placeButton();
     const user = await currentUser();
-    if (!user) {
-      button.classList.add('hidden');
-      if (testButton) testButton.classList.add('hidden');
-      return;
-    }
+    if (!user) { button.classList.add('hidden'); if (testButton) testButton.classList.add('hidden'); return; }
     button.classList.remove('hidden');
     try {
       const registration = await getRegistration();
       const subscription = await registration.pushManager?.getSubscription();
       setButtonState(Notification.permission === 'granted' && !!subscription);
-    } catch {
-      setButtonState(false);
-    }
+    } catch { setButtonState(false); }
   }
 
   async function handleClick() {
     if (busy) return;
-    busy = true;
-    button.disabled = true;
+    busy = true; button.disabled = true;
     try {
       const registration = await getRegistration();
       const existing = await registration.pushManager?.getSubscription();
-      if (existing) {
-        await disableSubscription();
-        toast('Notifiche disattivate su questo dispositivo.');
-      } else {
-        await ensureSubscription();
-        toast('Notifiche attivate su questo dispositivo.');
-      }
+      if (existing) { await disableSubscription(); toast('Notifiche disattivate su questo dispositivo.'); }
+      else { await ensureSubscription(); toast('Notifiche attivate su questo dispositivo.'); }
       await refreshButton();
     } catch (error) {
       console.error('PW Posa push:', error);
       toast('Notifiche: ' + (error?.message || String(error)));
-    } finally {
-      busy = false;
-      button.disabled = false;
-    }
+    } finally { busy = false; button.disabled = false; }
   }
 
   async function handleTest() {
     if (busy) return;
-    busy = true;
-    testButton.disabled = true;
+    busy = true; testButton.disabled = true;
     try {
       await ensureSubscription();
       const registration = await getRegistration();
       await registration.showNotification('PW Posa · Test', {
-        body: 'Notifica di prova ricevuta correttamente.',
-        icon: './icon-192-v2.png',
-        data: { url: './' },
-        tag: 'pw-posa-test-' + Date.now(),
-        renotify: true
+        body: 'Notifica di prova ricevuta correttamente.', icon: './icon-192-v2.png',
+        data: { url: './' }, tag: 'pw-posa-test-' + Date.now(), renotify: true
       });
       if ('setAppBadge' in navigator) await navigator.setAppBadge(1);
-      toast('Test inviato: chiudi PW Posa e controlla notifica e numerino 1.');
+      toast('Test inviato: controlla notifica e numerino 1 sull’icona.');
     } catch (error) {
       console.error('PW Posa test notifica:', error);
       toast('Test notifica: ' + (error?.message || String(error)));
-    } finally {
-      busy = false;
-      testButton.disabled = false;
-      await refreshButton();
-    }
+    } finally { busy = false; testButton.disabled = false; await refreshButton(); }
   }
 
   function mountButton() {
     if (button) return;
-    button = document.createElement('button');
-    button.type = 'button';
-    button.id = 'pushNotificationsBtn';
-    button.className = 'push-notifications-toggle hidden';
-    button.setAttribute('aria-pressed', 'false');
-    button.addEventListener('click', handleClick);
-
-    testButton = document.createElement('button');
-    testButton.type = 'button';
-    testButton.id = 'pushTestBtn';
-    testButton.className = 'btn ghost hidden';
-    testButton.textContent = 'Prova notifica';
-    testButton.title = 'Invia una notifica di prova su questo dispositivo';
-    testButton.addEventListener('click', handleTest);
-
-    document.body.appendChild(button);
-    document.body.appendChild(testButton);
-    placeButton();
-    refreshButton();
+    button = document.createElement('button'); button.type = 'button'; button.id = 'pushNotificationsBtn';
+    button.className = 'push-notifications-toggle hidden'; button.setAttribute('aria-pressed', 'false'); button.addEventListener('click', handleClick);
+    testButton = document.createElement('button'); testButton.type = 'button'; testButton.id = 'pushTestBtn';
+    testButton.className = 'btn ghost hidden'; testButton.textContent = 'Prova notifica';
+    testButton.title = 'Invia una notifica di prova su questo dispositivo'; testButton.addEventListener('click', handleTest);
+    document.body.appendChild(button); document.body.appendChild(testButton); placeButton(); refreshButton();
   }
+
+  window.PWPosaClearNotificationBadge = clearAppBadge;
 
   window.addEventListener('load', () => {
     mountButton();
     setTimeout(refreshButton, 800);
     setTimeout(refreshButton, 2200);
-    setTimeout(clearAppBadge, 900);
   });
 
-  window.addEventListener('focus', clearAppBadge);
-  window.addEventListener('pageshow', clearAppBadge);
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') clearAppBadge();
-  });
-
+  // Il badge resta visibile anche se PW Posa è aperta: viene azzerato solo
+  // quando l'utente apre una notifica (gestito dal service worker) oppure
+  // quando le notifiche vengono disattivate.
   if (mobileQuery.addEventListener) mobileQuery.addEventListener('change', placeButton);
   else mobileQuery.addListener(placeButton);
-
   pushSb.auth.onAuthStateChange(() => setTimeout(refreshButton, 150));
 })();
