@@ -47,10 +47,11 @@
   <script src="team-name-fix.js?v=20260903-angelo1"></script>
   <script src="notifications.js?v=20260903-badge2"></script>
   <script src="pose-auto-push.js?v=20260903-auto1"></script>
+  <script src="password-toggle.js?v=20260903-eye1"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./service-worker.js?v=20260903-push2', { scope: './' })
+        navigator.serviceWorker.register('./service-worker.js?v=20260903-androidicon1', { scope: './' })
           .then(registration => console.log('PW Posa service worker attivo:', registration.scope))
           .catch(error => console.error('PW Posa service worker:', error));
       });
