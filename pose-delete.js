@@ -29,7 +29,7 @@
     dlg.innerHTML = `<div class="delete-pose-inner">
       <div class="eyebrow">CONFERMA ELIMINAZIONE</div>
       <h3 id="deletePoseTitle">Eliminare la posa?</h3>
-      <p id="deletePoseText">Questa operazione eliminerà la posa dal calendario.</p>
+      <p id="deletePoseText">Questa operazione eliminerà definitivamente la posa e i dati collegati.</p>
       <div class="delete-pose-actions">
         <button type="button" class="btn ghost" id="deletePoseCancel">Annulla</button>
         <button type="button" class="btn delete-pose-danger" id="deletePoseConfirm">Elimina posa</button>
@@ -41,38 +41,12 @@
     return dlg;
   }
 
-  async function countLinked(table, poseId){
-    const {count,error} = await sb.from(table).select('*',{count:'exact',head:true}).eq('pose_id',poseId);
-    if(error) throw new Error(`Controllo ${table}: ${error.message}`);
-    return Number(count||0);
-  }
-
-  async function preflight(poseId){
-    const checks = [
-      ['daily_report_poses','rapportini'],
-      ['pose_photos','foto'],
-      ['pose_checklists','checklist'],
-      ['issues','segnalazioni']
-    ];
-    const found=[];
-    for(const [table,label] of checks){
-      const count = await countLinked(table,poseId);
-      if(count>0) found.push({label,count});
-    }
-    return found;
-  }
-
   async function deletePose(){
     if(!currentPoseId) return toast('Posa non identificata');
     const p = await getProfile().catch(()=>null);
     if(!isScheduler(p)) return toast('Solo l’Ufficio che gestisce il calendario può eliminare pose');
     const btn=$('deletePoseConfirm'); if(btn) btn.disabled=true;
     try{
-      const linked = await preflight(currentPoseId);
-      if(linked.length){
-        const desc = linked.map(x=>`${x.count} ${x.label}`).join(', ');
-        throw new Error(`Eliminazione bloccata: questa posa contiene ${desc}. Il fascicolo storico non viene cancellato automaticamente.`);
-      }
       const {data,error} = await sb.from('poses').delete().eq('id',currentPoseId).select('id');
       if(error) throw error;
       if(!data?.length) throw new Error('La posa non è stata eliminata. Verifica che la policy DELETE di Supabase consenta l’operazione all’Ufficio.');
@@ -114,7 +88,7 @@
       btn.addEventListener('click',()=>{
         const dlg=ensureConfirmDialog();
         $('deletePoseTitle').textContent=`Eliminare la posa ${currentJobNumber || ''}?`;
-        $('deletePoseText').textContent='Questa operazione eliminerà la posa dal calendario. Se esistono rapportini, PDF, foto, checklist o segnalazioni, l’eliminazione verrà bloccata per proteggere lo storico.';
+        $('deletePoseText').textContent='Confermando, la posa verrà eliminata definitivamente insieme ai dati collegati. Questa operazione non può essere annullata.';
         if(!dlg.open) dlg.showModal();
       });
     }
