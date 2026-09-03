@@ -5,7 +5,6 @@
 
   const pushSb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
   let button = null;
-  let testButton = null;
   let busy = false;
   const mobileQuery = window.matchMedia('(max-width: 900px)');
 
@@ -102,7 +101,6 @@
     button.setAttribute('aria-label', active ? 'Disattiva notifiche' : 'Attiva notifiche');
     button.title = active ? 'Notifiche attive · clicca per disattivare' : 'Notifiche disattivate · clicca per attivare';
     button.innerHTML = `<span class="push-bell" aria-hidden="true">${active ? '🔔' : '🔕'}</span><span class="push-label">${active ? 'Notifiche attive' : 'Attiva notifiche'}</span>`;
-    if (testButton) testButton.classList.toggle('hidden', !active);
   }
 
   function placeButton() {
@@ -113,14 +111,13 @@
     if (!target) return;
     const anchor = mobileQuery.matches ? document.getElementById('topLogoutBtn') : target.firstChild;
     if (button.parentElement !== target) target.insertBefore(button, anchor || null);
-    if (testButton && testButton.parentElement !== target) target.insertBefore(testButton, button.nextSibling);
   }
 
   async function refreshButton() {
     if (!button) return;
     placeButton();
     const user = await currentUser();
-    if (!user) { button.classList.add('hidden'); if (testButton) testButton.classList.add('hidden'); return; }
+    if (!user) { button.classList.add('hidden'); return; }
     button.classList.remove('hidden');
     try {
       const registration = await getRegistration();
@@ -144,38 +141,11 @@
     } finally { busy = false; button.disabled = false; }
   }
 
-  async function handleTest() {
-    if (busy) return;
-    busy = true; testButton.disabled = true;
-    try {
-      await ensureSubscription();
-      const registration = await getRegistration();
-      await registration.showNotification('PW Posa · Test', {
-        body: 'Notifica di prova ricevuta correttamente.',
-        icon: './icon-192-v2.png',
-        badge: './app-icon.svg',
-        silent: false,
-        vibrate: [180, 80, 180],
-        data: { url: './' },
-        tag: 'pw-posa-test-' + Date.now(),
-        renotify: true
-      });
-      if ('setAppBadge' in navigator) await navigator.setAppBadge(1);
-      toast('Test inviato: controlla suono, icona e numerino.');
-    } catch (error) {
-      console.error('PW Posa test notifica:', error);
-      toast('Test notifica: ' + (error?.message || String(error)));
-    } finally { busy = false; testButton.disabled = false; await refreshButton(); }
-  }
-
   function mountButton() {
     if (button) return;
     button = document.createElement('button'); button.type = 'button'; button.id = 'pushNotificationsBtn';
     button.className = 'push-notifications-toggle hidden'; button.setAttribute('aria-pressed', 'false'); button.addEventListener('click', handleClick);
-    testButton = document.createElement('button'); testButton.type = 'button'; testButton.id = 'pushTestBtn';
-    testButton.className = 'btn ghost hidden'; testButton.textContent = 'Prova notifica';
-    testButton.title = 'Invia una notifica di prova su questo dispositivo'; testButton.addEventListener('click', handleTest);
-    document.body.appendChild(button); document.body.appendChild(testButton); placeButton(); refreshButton();
+    document.body.appendChild(button); placeButton(); refreshButton();
   }
 
   window.PWPosaClearNotificationBadge = clearAppBadge;
