@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pw-posa-shell-v3';
+const CACHE_NAME = 'pw-posa-shell-v4';
 const BADGE_STATE_CACHE = 'pw-posa-badge-state-v1';
 const BADGE_STATE_URL = new URL('./__pw_posa_badge_count__', self.location.href).href;
 const APP_SHELL = [
@@ -9,6 +9,7 @@ const APP_SHELL = [
   './enhancements.css',
   './hotfix.css',
   './logo_planet.svg',
+  './app-icon.svg',
   './icon-192-v2.png',
   './icon-512-v2.png',
   './icon-1024-v2.png',
@@ -39,7 +40,6 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const request = event.request;
   if (request.method !== 'GET') return;
-
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
 
@@ -94,6 +94,9 @@ self.addEventListener('push', event => {
     const options = {
       body: data.body || 'Hai una nuova notifica.',
       icon: './icon-192-v2.png',
+      badge: './app-icon.svg',
+      silent: false,
+      vibrate: [180, 80, 180],
       data: { url: data.url || './', badgeCount },
       tag: data.tag || 'pw-posa',
       renotify: true
