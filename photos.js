@@ -8,7 +8,7 @@
   let profile=null;
 
   const esc=v=>String(v??'').replace(/[&<>"']/g,s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[s]));
-  const toast=msg=>{const el=$('toast');if(!el)return;el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),2600)};
+  const toast=msg=>{const el=$('toast');if(!el)return;el.textContent=msg;el.classList.add('show');setTimeout(()=>el.classList.remove('show'),3200)};
   const labels={prima:'Prima della posa',durante:'Durante la posa',dopo:'Dopo la posa',segnalazione:'Foto segnalazione'};
   const validPhases=new Set(Object.keys(labels));
 
@@ -23,7 +23,7 @@
     if($('photoChoiceDialog')) return;
     const dlg=document.createElement('dialog');
     dlg.id='photoChoiceDialog'; dlg.className='photo-choice';
-    dlg.innerHTML=`<div class="photo-choice-inner"><div class="eyebrow">AGGIUNGI FOTO</div><h3 id="photoChoiceTitle">Foto posa</h3><p class="muted">Scegli come aggiungere la foto.</p><div class="photo-choice-actions"><button type="button" class="btn primary" id="photoCameraBtn">📷 Scatta foto</button><button type="button" class="btn ghost" id="photoLibraryBtn">🖼️ Scegli dalla libreria</button></div><button type="button" class="btn ghost photo-choice-close" id="photoChoiceClose">Annulla</button></div>`;
+    dlg.innerHTML=`<div class="photo-choice-inner"><div class="eyebrow">AGGIUNGI FOTO</div><h3 id="photoChoiceTitle">Foto posa</h3><p class="muted">Puoi scattare una foto oppure selezionare più foto insieme dalla libreria.</p><div class="photo-choice-actions"><button type="button" class="btn primary" id="photoCameraBtn">📷 Scatta foto</button><button type="button" class="btn ghost" id="photoLibraryBtn">🖼️ Scegli più foto</button></div><button type="button" class="btn ghost photo-choice-close" id="photoChoiceClose">Annulla</button></div>`;
     document.body.appendChild(dlg);
     $('photoChoiceClose').addEventListener('click',()=>{pendingUpload=null;dlg.close();});
     $('photoCameraBtn').addEventListener('click',()=>chooseFile(true));
@@ -48,39 +48,63 @@
     const input=document.createElement('input');
     input.type='file';
     input.accept='image/*';
-    if(camera) input.setAttribute('capture','environment');
+    if(camera){
+      input.setAttribute('capture','environment');
+    }else{
+      input.multiple=true;
+    }
     input.style.display='none';
     document.body.appendChild(input);
     input.addEventListener('change',async()=>{
-      const file=input.files?.[0];
+      const files=[...(input.files||[])];
       input.remove();
       pendingUpload=null;
-      if(!file) return;
-      try{await uploadPhoto(file,context)}catch(err){toast(err.message);console.error('PW Posa photo upload',err)}
+      if(!files.length) return;
+      try{
+        await uploadPhotos(files,context);
+      }catch(err){
+        toast(err.message);
+        console.error('PW Posa photo upload',err);
+      }
     },{once:true});
     input.click();
   }
 
-  async function uploadPhoto(file,context){
+  async function uploadPhotos(files,context){
     const poseId=context?.poseId;
     const phase=context?.phase;
     if(!poseId||!validPhases.has(phase)) throw new Error('Categoria foto non valida');
     const {data:{session}}=await sb.auth.getSession();
     if(!session) throw new Error('Sessione scaduta');
-    const safe=(file.name||'foto.jpg').replace(/[^a-zA-Z0-9._-]+/g,'-');
-    const token=crypto.randomUUID?.()||Math.random().toString(36).slice(2);
-    const path=`poses/${poseId}/${phase}/${Date.now()}-${token}-${safe}`;
+
     const status=document.querySelector(`[data-photo-status="${phase}"]`);
-    if(status) status.textContent=`Caricamento in ${labels[phase]}…`;
-    const {error:upErr}=await sb.storage.from('pw-posa-photos').upload(path,file,{contentType:file.type||'image/jpeg',upsert:false});
-    if(upErr) throw new Error(`Upload foto: ${upErr.message}`);
-    const {data:row,error:dbErr}=await sb.from('pose_photos')
-      .insert({pose_id:poseId,phase,storage_path:path,uploaded_by:session.user.id,caption:null})
-      .select('id,phase,storage_path')
-      .single();
-    if(dbErr) throw new Error(`Registrazione foto: ${dbErr.message}`);
-    if(String(row?.phase||'').toLowerCase()!==phase) throw new Error(`Foto salvata nella categoria errata (${row?.phase||'sconosciuta'})`);
-    toast(`Foto salvata in ${labels[phase]}`);
+    let completed=0;
+    const failed=[];
+
+    for(const file of files){
+      try{
+        if(status) status.textContent=`Caricamento ${completed+1} di ${files.length} in ${labels[phase]}…`;
+        const safe=(file.name||'foto.jpg').replace(/[^a-zA-Z0-9._-]+/g,'-');
+        const token=crypto.randomUUID?.()||Math.random().toString(36).slice(2);
+        const path=`poses/${poseId}/${phase}/${Date.now()}-${token}-${safe}`;
+        const {error:upErr}=await sb.storage.from('pw-posa-photos').upload(path,file,{contentType:file.type||'image/jpeg',upsert:false});
+        if(upErr) throw new Error(`Upload foto: ${upErr.message}`);
+        const {data:row,error:dbErr}=await sb.from('pose_photos')
+          .insert({pose_id:poseId,phase,storage_path:path,uploaded_by:session.user.id,caption:null})
+          .select('id,phase,storage_path')
+          .single();
+        if(dbErr) throw new Error(`Registrazione foto: ${dbErr.message}`);
+        if(String(row?.phase||'').toLowerCase()!==phase) throw new Error(`Foto salvata nella categoria errata (${row?.phase||'sconosciuta'})`);
+        completed++;
+      }catch(error){
+        console.error('PW Posa photo upload item',error);
+        failed.push(file.name||'foto');
+      }
+    }
+
+    if(status) status.textContent='';
+    if(completed) toast(`${completed} ${completed===1?'foto salvata':'foto salvate'} in ${labels[phase]}${failed.length?` · ${failed.length} non caricata/e`:''}`);
+    else throw new Error('Nessuna foto è stata caricata.');
     await renderPhotoControls(poseId);
   }
 
