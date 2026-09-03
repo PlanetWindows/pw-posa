@@ -43,20 +43,14 @@
       updated_at: new Date().toISOString()
     };
     if (!payload.endpoint || !payload.p256dh || !payload.auth) throw new Error('Dati della sottoscrizione push incompleti.');
-
-    const { error } = await pushSb
-      .from('push_subscriptions')
-      .upsert(payload, { onConflict: 'endpoint' });
+    const { error } = await pushSb.from('push_subscriptions').upsert(payload, { onConflict: 'endpoint' });
     if (error) throw error;
   }
 
   async function ensureSubscription() {
     const user = await currentUser();
     if (!user) throw new Error('Accedi a PW Posa prima di attivare le notifiche.');
-
-    if (!('Notification' in window) || !('PushManager' in window)) {
-      throw new Error('Le notifiche push non sono supportate da questo browser/dispositivo.');
-    }
+    if (!('Notification' in window) || !('PushManager' in window)) throw new Error('Le notifiche push non sono supportate da questo browser/dispositivo.');
 
     let permission = Notification.permission;
     if (permission === 'default') permission = await Notification.requestPermission();
@@ -70,34 +64,36 @@
         applicationServerKey: base64UrlToUint8Array(VAPID_PUBLIC_KEY)
       });
     }
-
     await saveSubscription(subscription, user);
     return subscription;
   }
 
-  async function sendTestPush() {
-    const { data: { session } } = await pushSb.auth.getSession();
-    if (!session) throw new Error('Sessione non disponibile.');
+  async function disableSubscription() {
+    const user = await currentUser();
+    const registration = await getRegistration();
+    const subscription = await registration.pushManager.getSubscription();
+    if (!subscription) return;
+    const endpoint = subscription.endpoint;
 
-    const response = await fetch(`${cfg.SUPABASE_URL}/functions/v1/send-push`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'apikey': cfg.SUPABASE_ANON_KEY,
-        'Authorization': `Bearer ${session.access_token}`
-      },
-      body: JSON.stringify({
-        title: 'PW Posa',
-        body: 'Notifica di prova ricevuta correttamente.',
-        url: './'
-      })
-    });
-
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok || !result.success) {
-      throw new Error(result.error || `Invio push fallito (${response.status})`);
+    if (user && endpoint) {
+      const { error } = await pushSb
+        .from('push_subscriptions')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('endpoint', endpoint);
+      if (error) throw error;
     }
-    return result;
+    await subscription.unsubscribe();
+  }
+
+  function setButtonState(active) {
+    if (!button) return;
+    button.dataset.pushReady = active ? '1' : '0';
+    button.classList.toggle('is-active', active);
+    button.setAttribute('aria-pressed', active ? 'true' : 'false');
+    button.setAttribute('aria-label', active ? 'Disattiva notifiche' : 'Attiva notifiche');
+    button.title = active ? 'Notifiche attive · clicca per disattivare' : 'Notifiche disattivate · clicca per attivare';
+    button.innerHTML = `<span class="push-bell" aria-hidden="true">${active ? '🔔' : '🔕'}</span><span class="push-label">${active ? 'Notifiche attive' : 'Attiva notifiche'}</span>`;
   }
 
   async function refreshButton() {
@@ -108,20 +104,12 @@
       return;
     }
     button.classList.remove('hidden');
-
     try {
       const registration = await getRegistration();
       const subscription = await registration.pushManager?.getSubscription();
-      if (Notification.permission === 'granted' && subscription) {
-        button.textContent = '🔔 Test notifica';
-        button.dataset.pushReady = '1';
-      } else {
-        button.textContent = '🔔 Attiva notifiche';
-        button.dataset.pushReady = '0';
-      }
+      setButtonState(Notification.permission === 'granted' && !!subscription);
     } catch {
-      button.textContent = '🔔 Attiva notifiche';
-      button.dataset.pushReady = '0';
+      setButtonState(false);
     }
   }
 
@@ -130,13 +118,16 @@
     busy = true;
     button.disabled = true;
     try {
-      await ensureSubscription();
-      toast('Notifiche attivate su questo dispositivo.');
-      await refreshButton();
-      if (button.dataset.pushReady === '1') {
-        const result = await sendTestPush();
-        toast(`Test inviato: ${result.sent || 0} dispositivo/i.`);
+      const registration = await getRegistration();
+      const existing = await registration.pushManager?.getSubscription();
+      if (existing) {
+        await disableSubscription();
+        toast('Notifiche disattivate su questo dispositivo.');
+      } else {
+        await ensureSubscription();
+        toast('Notifiche attivate su questo dispositivo.');
       }
+      await refreshButton();
     } catch (error) {
       console.error('PW Posa push:', error);
       toast('Notifiche: ' + (error?.message || String(error)));
@@ -148,15 +139,19 @@
 
   function mountButton() {
     if (button) return;
-    const actions = document.querySelector('.topbar-actions');
-    if (!actions) return;
+    const sidebarFooter = document.querySelector('.sidebar-footer');
+    const topbarActions = document.querySelector('.topbar-actions');
+    if (!sidebarFooter && !topbarActions) return;
+
     button = document.createElement('button');
     button.type = 'button';
     button.id = 'pushNotificationsBtn';
-    button.className = 'btn ghost hidden';
-    button.textContent = '🔔 Attiva notifiche';
+    button.className = 'push-notifications-toggle hidden';
+    button.setAttribute('aria-pressed', 'false');
     button.addEventListener('click', handleClick);
-    actions.insertBefore(button, actions.firstChild);
+
+    if (sidebarFooter) sidebarFooter.insertBefore(button, sidebarFooter.firstChild);
+    else topbarActions.insertBefore(button, topbarActions.firstChild);
     refreshButton();
   }
 
