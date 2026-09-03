@@ -73,7 +73,10 @@
     const user = await currentUser();
     const registration = await getRegistration();
     const subscription = await registration.pushManager.getSubscription();
-    if (!subscription) return;
+    if (!subscription) {
+      await clearAppBadge();
+      return;
+    }
     const endpoint = subscription.endpoint;
 
     if (user && endpoint) {
@@ -85,6 +88,23 @@
       if (error) throw error;
     }
     await subscription.unsubscribe();
+    await clearAppBadge();
+  }
+
+  async function clearAppBadge() {
+    if (document.visibilityState !== 'visible') return;
+    try {
+      const user = await currentUser();
+      if (!user) return;
+      if ('clearAppBadge' in navigator) await navigator.clearAppBadge();
+      else if ('setAppBadge' in navigator) await navigator.setAppBadge(0);
+
+      const registration = await getRegistration();
+      const worker = registration.active || registration.waiting || registration.installing;
+      worker?.postMessage({ type: 'PW_POSA_CLEAR_BADGE' });
+    } catch (error) {
+      console.warn('PW Posa: impossibile azzerare il badge', error);
+    }
   }
 
   function setButtonState(active) {
@@ -170,6 +190,13 @@
     mountButton();
     setTimeout(refreshButton, 800);
     setTimeout(refreshButton, 2200);
+    setTimeout(clearAppBadge, 900);
+  });
+
+  window.addEventListener('focus', clearAppBadge);
+  window.addEventListener('pageshow', clearAppBadge);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') clearAppBadge();
   });
 
   if (mobileQuery.addEventListener) mobileQuery.addEventListener('change', placeButton);
