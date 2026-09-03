@@ -36,16 +36,17 @@
 
   async function saveSubscription(subscription, user) {
     const json = subscription.toJSON();
-    const payload = {
-      user_id: user.id,
-      endpoint: json.endpoint,
-      p256dh: json.keys?.p256dh,
-      auth: json.keys?.auth,
-      user_agent: navigator.userAgent,
-      updated_at: new Date().toISOString()
-    };
-    if (!payload.endpoint || !payload.p256dh || !payload.auth) throw new Error('Dati della sottoscrizione push incompleti.');
-    const { error } = await pushSb.from('push_subscriptions').upsert(payload, { onConflict: 'endpoint' });
+    const endpoint = json.endpoint;
+    const p256dh = json.keys?.p256dh;
+    const auth = json.keys?.auth;
+    if (!endpoint || !p256dh || !auth) throw new Error('Dati della sottoscrizione push incompleti.');
+
+    const { error } = await pushSb.rpc('register_push_subscription', {
+      p_endpoint: endpoint,
+      p_p256dh: p256dh,
+      p_auth: auth,
+      p_user_agent: navigator.userAgent
+    });
     if (error) throw error;
   }
 
