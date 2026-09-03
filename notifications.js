@@ -151,11 +151,17 @@
       await ensureSubscription();
       const registration = await getRegistration();
       await registration.showNotification('PW Posa · Test', {
-        body: 'Notifica di prova ricevuta correttamente.', icon: './icon-192-v2.png',
-        data: { url: './' }, tag: 'pw-posa-test-' + Date.now(), renotify: true
+        body: 'Notifica di prova ricevuta correttamente.',
+        icon: './icon-192-v2.png',
+        badge: './app-icon.svg',
+        silent: false,
+        vibrate: [180, 80, 180],
+        data: { url: './' },
+        tag: 'pw-posa-test-' + Date.now(),
+        renotify: true
       });
       if ('setAppBadge' in navigator) await navigator.setAppBadge(1);
-      toast('Test inviato: controlla notifica e numerino 1 sull’icona.');
+      toast('Test inviato: controlla suono, icona e numerino.');
     } catch (error) {
       console.error('PW Posa test notifica:', error);
       toast('Test notifica: ' + (error?.message || String(error)));
@@ -180,9 +186,6 @@
     setTimeout(refreshButton, 2200);
   });
 
-  // Il badge resta visibile anche se PW Posa è aperta: viene azzerato solo
-  // quando l'utente apre una notifica (gestito dal service worker) oppure
-  // quando le notifiche vengono disattivate.
   if (mobileQuery.addEventListener) mobileQuery.addEventListener('change', placeButton);
   else mobileQuery.addListener(placeButton);
   pushSb.auth.onAuthStateChange(() => setTimeout(refreshButton, 150));
