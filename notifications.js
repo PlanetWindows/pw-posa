@@ -6,6 +6,7 @@
   const pushSb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
   let button = null;
   let busy = false;
+  const mobileQuery = window.matchMedia('(max-width: 900px)');
 
   function base64UrlToUint8Array(base64Url) {
     const padding = '='.repeat((4 - (base64Url.length % 4)) % 4);
@@ -96,8 +97,23 @@
     button.innerHTML = `<span class="push-bell" aria-hidden="true">${active ? '🔔' : '🔕'}</span><span class="push-label">${active ? 'Notifiche attive' : 'Attiva notifiche'}</span>`;
   }
 
+  function placeButton() {
+    if (!button) return;
+    const sidebarFooter = document.querySelector('.sidebar-footer');
+    const topbarActions = document.querySelector('.topbar-actions');
+    if (mobileQuery.matches) {
+      if (topbarActions && button.parentElement !== topbarActions) {
+        const logout = document.getElementById('topLogoutBtn');
+        topbarActions.insertBefore(button, logout || topbarActions.firstChild);
+      }
+    } else if (sidebarFooter && button.parentElement !== sidebarFooter) {
+      sidebarFooter.insertBefore(button, sidebarFooter.firstChild);
+    }
+  }
+
   async function refreshButton() {
     if (!button) return;
+    placeButton();
     const user = await currentUser();
     if (!user) {
       button.classList.add('hidden');
@@ -139,19 +155,14 @@
 
   function mountButton() {
     if (button) return;
-    const sidebarFooter = document.querySelector('.sidebar-footer');
-    const topbarActions = document.querySelector('.topbar-actions');
-    if (!sidebarFooter && !topbarActions) return;
-
     button = document.createElement('button');
     button.type = 'button';
     button.id = 'pushNotificationsBtn';
     button.className = 'push-notifications-toggle hidden';
     button.setAttribute('aria-pressed', 'false');
     button.addEventListener('click', handleClick);
-
-    if (sidebarFooter) sidebarFooter.insertBefore(button, sidebarFooter.firstChild);
-    else topbarActions.insertBefore(button, topbarActions.firstChild);
+    document.body.appendChild(button);
+    placeButton();
     refreshButton();
   }
 
@@ -160,6 +171,9 @@
     setTimeout(refreshButton, 800);
     setTimeout(refreshButton, 2200);
   });
+
+  if (mobileQuery.addEventListener) mobileQuery.addEventListener('change', placeButton);
+  else mobileQuery.addListener(placeButton);
 
   pushSb.auth.onAuthStateChange(() => setTimeout(refreshButton, 150));
 })();
