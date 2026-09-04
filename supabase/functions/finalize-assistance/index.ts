@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { PDFDocument, StandardFonts, rgb } from "npm:pdf-lib@1.17.1";
+import { Resvg } from "npm:@resvg/resvg-js@2.6.2";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -7,6 +8,7 @@ const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "";
 const FROM_EMAIL = Deno.env.get("ASSISTANCE_FROM_EMAIL") || "posapw@planetwindows.it";
 const BUCKET = "pw-assistance-private";
+const LOGO_SVG_URL = Deno.env.get("PW_LOGO_SVG_URL") || "https://raw.githubusercontent.com/PlanetWindows/pw-posa/main/logo_planet.svg";
 const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -20,7 +22,6 @@ function b64(bytes: Uint8Array) {
   for (let i = 0; i < bytes.length; i += 0x8000) out += String.fromCharCode(...bytes.subarray(i, Math.min(i + 0x8000, bytes.length)));
   return btoa(out);
 }
-
 function safe(v: unknown) { return String(v ?? "").trim(); }
 function boolText(v: boolean) { return v ? "Si" : "No"; }
 function euro(v: unknown) {
@@ -50,79 +51,111 @@ async function sendEmail(to: string, name: string, bytes: Uint8Array, protocol: 
   if (!r.ok) throw new Error(`Servizio email: ${r.status} ${await r.text()}`);
 }
 
+async function embedPlanetLogo(pdf: PDFDocument, page: any) {
+  try {
+    const res = await fetch(LOGO_SVG_URL, { cache: "no-store" });
+    if (!res.ok) throw new Error("Logo non disponibile");
+    const svg = await res.text();
+    const rendered = new Resvg(svg, { fitTo: { mode: "width", value: 900 } }).render();
+    const png = await pdf.embedPng(rendered.asPng());
+    page.drawImage(png, { x: 40, y: 780, width: 168, height: 41 });
+    return true;
+  } catch (_) {
+    const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+    page.drawText("PLANET WINDOWS", { x: 44, y: 800, size: 18, font: bold, color: rgb(0.137, 0.122, 0.125) });
+    return false;
+  }
+}
+
 async function makePdf(a: any, body: any, signedAt: Date) {
   const pdf = await PDFDocument.create();
-  const page = pdf.addPage([595.28, 841.89]);
+  let page = pdf.addPage([595.28, 841.89]);
   const regular = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
-  const gold = rgb(0.79, 0.61, 0.26);
-  const black = rgb(0.08, 0.08, 0.08);
-  const muted = rgb(0.38, 0.38, 0.38);
-  const line = rgb(0.88, 0.84, 0.75);
-  const left = 44, right = 551, width = right - left;
-  let y = 790;
+  const gold = rgb(0.824, 0.671, 0.404);
+  const black = rgb(0.137, 0.122, 0.125);
+  const muted = rgb(0.40, 0.38, 0.36);
+  const line = rgb(0.86, 0.82, 0.74);
+  const soft = rgb(0.99, 0.985, 0.97);
+  const left = 40, right = 555, width = right - left;
+  let y = 762;
 
-  page.drawRectangle({ x: 0, y: 805, width: 595.28, height: 36, color: black });
-  page.drawText("PLANET WINDOWS", { x: left, y: 817, size: 13, font: bold, color: rgb(1, 1, 1) });
-  page.drawRectangle({ x: left, y: 783, width: 62, height: 3, color: gold });
-  page.drawText("RAPPORTINO DI ASSISTENZA", { x: left, y: 758, size: 20, font: bold, color: black });
-  page.drawText(`Protocollo / ordine: ${safe(a.protocol_order)}`, { x: left, y: 738, size: 10, font: regular, color: muted });
-  y = 712;
+  await embedPlanetLogo(pdf, page);
+  page.drawLine({ start: { x: left, y: 754 }, end: { x: right, y: 754 }, thickness: 2.2, color: gold });
+  page.drawText("RAPPORTINO DI ASSISTENZA", { x: left, y: 722, size: 20, font: bold, color: black });
+  page.drawText(`Protocollo / ordine: ${safe(a.protocol_order) || "-"}`, { x: left, y: 704, size: 10, font: regular, color: muted });
+  y = 676;
 
-  const addRow = (label: string, value: string) => {
-    page.drawText(label.toUpperCase(), { x: left, y, size: 7.5, font: bold, color: muted });
-    page.drawText(value || "-", { x: left + 128, y: y - 1, size: 10, font: regular, color: black });
-    page.drawLine({ start: { x: left, y: y - 8 }, end: { x: right, y: y - 8 }, thickness: 0.6, color: line });
-    y -= 27;
+  const ensureSpace = (needed: number) => {
+    if (y - needed < 54) {
+      page.drawText(`PW Posa · Documento generato il ${new Date().toLocaleString("it-IT", { timeZone: "Europe/Rome" })}`, { x: left, y: 28, size: 7.5, font: regular, color: muted });
+      page = pdf.addPage([595.28, 841.89]);
+      page.drawLine({ start: { x: left, y: 806 }, end: { x: right, y: 806 }, thickness: 2, color: gold });
+      y = 780;
+    }
   };
-
-  addRow("Cliente", safe(a.client_name));
-  addRow("Telefono", safe(a.client_phone) || "-");
-  addRow("Indirizzo", [safe(a.address), safe(a.city), safe(a.postal_code)].filter(Boolean).join(", "));
-  addRow("Data assistenza", `${formatDate(a.scheduled_date)} · ${formatTime(a.start_time)}${a.end_time ? ` - ${formatTime(a.end_time)}` : ""}`);
-  addRow("Garanzia", boolText(!!a.warranty));
-  addRow("Pagamento", a.payment_required ? `Si · ${euro(a.payment_amount)}` : "No");
-
-  const block = (title: string, value: string, minHeight = 62) => {
-    const text = value || "-";
-    const chars = 86;
+  const textLines = (text: string, chars = 88) => {
     const lines: string[] = [];
-    for (const para of text.split(/\n+/)) {
+    for (const para of safe(text).split(/\n+/)) {
       let rest = para.trim();
+      if (!rest) { lines.push(" "); continue; }
       while (rest.length > chars) {
         let cut = rest.lastIndexOf(" ", chars);
         if (cut < 25) cut = chars;
         lines.push(rest.slice(0, cut));
         rest = rest.slice(cut).trim();
       }
-      lines.push(rest || " ");
+      lines.push(rest);
     }
-    const h = Math.max(minHeight, 34 + lines.length * 12);
-    page.drawRectangle({ x: left, y: y - h + 8, width, height: h, borderColor: line, borderWidth: 0.8, color: rgb(0.99, 0.985, 0.97) });
-    page.drawText(title.toUpperCase(), { x: left + 12, y: y - 10, size: 8, font: bold, color: muted });
+    return lines.length ? lines : ["-"];
+  };
+  const addRow = (label: string, value: string) => {
+    ensureSpace(27);
+    page.drawText(`${label}:`, { x: left, y, size: 10, font: bold, color: black });
+    const lines = textLines(value || "-", 68);
+    let ty = y;
+    for (const ln of lines) { page.drawText(ln, { x: left + 124, y: ty, size: 10, font: regular, color: black }); ty -= 12; }
+    y -= Math.max(24, lines.length * 12 + 9);
+  };
+  const block = (title: string, value: string, minHeight = 56) => {
+    const lines = textLines(value || "-", 92);
+    const h = Math.max(minHeight, 30 + lines.length * 12);
+    ensureSpace(h + 12);
+    page.drawRectangle({ x: left, y: y - h + 8, width, height: h, borderColor: line, borderWidth: 0.8, color: soft });
+    page.drawText(title.toUpperCase(), { x: left + 12, y: y - 11, size: 8.5, font: bold, color: gold });
     let ty = y - 29;
     for (const ln of lines) { page.drawText(ln, { x: left + 12, y: ty, size: 9.5, font: regular, color: black }); ty -= 12; }
     y -= h + 12;
   };
 
-  block("Problematica riscontrata", safe(body.issue_description));
+  const period = `${formatDate(a.scheduled_date)} · ${formatTime(a.start_time)}${a.end_time ? ` - ${formatTime(a.end_time)}` : ""}`;
+  addRow("Cliente", safe(a.client_name));
+  addRow("Telefono", safe(a.client_phone) || "-");
+  addRow("Email cliente", safe(a.client_email) || "-");
+  addRow("Cantiere", [safe(a.address), safe(a.city), safe(a.postal_code)].filter(Boolean).join(", "));
+  addRow("Data assistenza", period);
+  addRow("Garanzia", boolText(!!a.warranty));
+  addRow("Pagamento", a.payment_required ? `Si · ${euro(a.payment_amount)}` : "No");
+
+  y -= 4;
+  block("Problematica riscontrata", safe(body.issue_description), 64);
   addRow("Il problema e stato risolto?", body.problem_resolved ? "Si" : "No");
   block("Come si e intervenuti", safe(body.intervention), 72);
-  if (safe(body.final_notes)) block("Note finali", safe(body.final_notes), 54);
+  block("Note finali", safe(body.final_notes) || "-", 54);
 
   const sigData = safe(body.signature_data_url);
   if (!sigData.startsWith("data:image/png;base64,")) throw new Error("Firma obbligatoria o formato non valido");
   const pngBytes = Uint8Array.from(atob(sigData.split(",")[1]), c => c.charCodeAt(0));
   const sig = await pdf.embedPng(pngBytes);
   const boxH = 92;
-  if (y < 125) y = 125;
+  ensureSpace(boxH + 16);
   page.drawRectangle({ x: left, y: y - boxH + 8, width, height: boxH, borderColor: gold, borderWidth: 1 });
-  page.drawText("FIRMA CLIENTE", { x: left + 12, y: y - 10, size: 8, font: bold, color: muted });
-  const sw = Math.min(170, sig.width * 0.42), sh = Math.min(48, sw * sig.height / sig.width);
+  page.drawText("FIRMA CLIENTE", { x: left + 12, y: y - 10, size: 8.5, font: bold, color: gold });
+  const sw = Math.min(172, sig.width * 0.42), sh = Math.min(48, sw * sig.height / sig.width);
   page.drawImage(sig, { x: left + 12, y: y - 68, width: sw, height: sh });
-  page.drawText(safe(body.signer_name), { x: left + 205, y: y - 40, size: 10, font: bold, color: black });
-  page.drawText(signedAt.toLocaleString("it-IT", { timeZone: "Europe/Rome" }), { x: left + 205, y: y - 57, size: 9, font: regular, color: muted });
-  page.drawText("Documento generato automaticamente da PW Posa", { x: left, y: 28, size: 7.5, font: regular, color: muted });
+  page.drawText(safe(body.signer_name), { x: left + 210, y: y - 38, size: 10, font: bold, color: black });
+  page.drawText(signedAt.toLocaleString("it-IT", { timeZone: "Europe/Rome" }), { x: left + 210, y: y - 55, size: 9, font: regular, color: muted });
+  page.drawText(`PW Posa · Documento generato il ${new Date().toLocaleString("it-IT", { timeZone: "Europe/Rome" })}`, { x: left, y: 28, size: 7.5, font: regular, color: muted });
   return new Uint8Array(await pdf.save());
 }
 
