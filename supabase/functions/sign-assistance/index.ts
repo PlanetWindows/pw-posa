@@ -5,7 +5,7 @@ const SUPABASE_URL=Deno.env.get("SUPABASE_URL")!;
 const ANON_KEY=Deno.env.get("SUPABASE_ANON_KEY")!;
 const SERVICE_ROLE_KEY=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const RESEND_API_KEY=Deno.env.get("RESEND_API_KEY")||"";
-const FROM_EMAIL=Deno.env.get("ASSISTANCE_FROM_EMAIL")||"";
+const FROM_EMAIL=Deno.env.get("ASSISTANCE_FROM_EMAIL")||"posapw@planetwindows.it";
 const BUCKET="pw-assistance-private";
 const admin=createClient(SUPABASE_URL,SERVICE_ROLE_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
 const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type","Content-Type":"application/json"};
@@ -13,7 +13,6 @@ const json=(d:unknown,s=200)=>new Response(JSON.stringify(d),{status:s,headers:c
 function b64(bytes:Uint8Array){let out="";for(let i=0;i<bytes.length;i+=0x8000)out+=String.fromCharCode(...bytes.subarray(i,Math.min(i+0x8000,bytes.length)));return btoa(out)}
 async function sendEmail(to:string,name:string,bytes:Uint8Array,protocol:string,client:string){
   if(!RESEND_API_KEY)throw new Error("RESEND_API_KEY non configurata");
-  if(!FROM_EMAIL)throw new Error("ASSISTANCE_FROM_EMAIL non configurata");
   const r=await fetch("https://api.resend.com/emails",{method:"POST",headers:{Authorization:`Bearer ${RESEND_API_KEY}`,"Content-Type":"application/json"},body:JSON.stringify({from:FROM_EMAIL,to:[to],subject:`Planet Windows · Modulo assistenza firmato ${protocol}`,html:`<p>Gentile ${client},</p><p>in allegato trova il modulo firmato relativo all'assistenza <strong>${protocol}</strong>.</p><p>Planet Windows</p>`,attachments:[{filename:name,content:b64(bytes)}]})});
   if(!r.ok)throw new Error(`Servizio email: ${r.status} ${await r.text()}`);
 }
