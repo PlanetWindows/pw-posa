@@ -67,6 +67,7 @@
       const dr=await sb.from('assistance_dates').delete().eq('assistance_id',id); if(dr.error)throw dr.error;
       const dates=[...new Set([val('assDate'),val('assEndDate'),...extraDates()].filter(Boolean))];
       if(dates.length){const r=await sb.from('assistance_dates').insert(dates.map(d=>({assistance_id:id,assistance_date:d})));if(r.error)throw r.error}
+      if(window.PW_DDT) await window.PW_DDT.saveForAssistance(id);
       toast('Assistenza salvata');
       $('poseDialog')?.close();
       setTimeout(()=>location.reload(),650);
@@ -74,8 +75,6 @@
     finally{saving=false;if(btn){btn.disabled=false;btn.textContent=old||'Salva assistenza'}}
   }
 
-  // Intercetta il click prima che il form possa raggiungere il vecchio salvataggio delle pose.
-  // Questo rende i due flussi completamente separati: Assistenza -> assistances, Posa -> poses.
   document.addEventListener('click',e=>{
     const submit=e.target.closest('#poseSubmitBtn');
     if(submit&&assistanceMode()){
@@ -93,7 +92,6 @@
     e.preventDefault(); e.stopImmediatePropagation(); saveAssistance();
   },true);
 
-  // Evita che Invio dentro i campi Assistenza attivi il vecchio submit della posa.
   document.addEventListener('keydown',e=>{
     if(e.key!=='Enter'||!assistanceMode()||!e.target.closest('#assistanceFields'))return;
     if(e.target.tagName==='TEXTAREA')return;
