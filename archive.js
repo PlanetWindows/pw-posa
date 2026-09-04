@@ -45,7 +45,7 @@
     return `<article class="archive-card archive-folder-card">
       <div class="archive-card-top">
         <div class="archive-folder-title"><span class="archive-folder-icon" aria-hidden="true">📁</span><div><div class="eyebrow">FASCICOLO COMMESSA</div><strong>POSA ${esc(p.job_number)}</strong></div></div>
-        <span class="badge orange">Fascicolo</span>
+        <span class="badge green">Posa</span>
       </div>
       <div class="archive-client">Cliente: ${esc(p.client_name)}</div>
       <div class="archive-address">${esc(p.address||'')}${p.city?`, ${esc(p.city)}`:''}</div>
