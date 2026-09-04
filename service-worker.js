@@ -1,10 +1,10 @@
-const CACHE_NAME = 'pw-posa-shell-v11';
+const CACHE_NAME = 'pw-posa-shell-v12';
 const BADGE_STATE_CACHE = 'pw-posa-badge-state-v1';
 const BADGE_STATE_URL = new URL('./__pw_posa_badge_count__', self.location.href).href;
 const APP_SHELL = [
   './', './index.html', './manifest.webmanifest', './styles.css', './enhancements.css', './hotfix.css',
   './assistance.css', './assistance-save-archive-calendar-fix.css', './assistance.js',
-  './assistance-validation-fix.js', './assistance-team-fix.js', './assistance-auto-report.js',
+  './assistance-validation-fix.js', './assistance-team-fix.js', './assistance-auto-report.js', './calendar-assistance-render.js',
   './logo_planet.svg', './app-icon.svg', './icon-192-v2.png', './icon-512-v2.png',
   './icon-1024-v2.png', './icon-maskable-512-v2.png', './apple-touch-icon-v2.png'
 ];
@@ -15,7 +15,6 @@ self.addEventListener('fetch', event => {
   if(request.mode==='navigate'){
     event.respondWith(fetch(request,{cache:'no-store'}).then(response=>{const copy=response.clone();caches.open(CACHE_NAME).then(cache=>cache.put('./index.html',copy));return response}).catch(()=>caches.match('./index.html'))); return;
   }
-  // JS/CSS devono essere network-first: evita che una vecchia correzione resti attiva dalla cache PWA.
   if(/\.(?:js|css)$/.test(url.pathname)){
     event.respondWith(fetch(request,{cache:'no-store'}).then(response=>{if(response&&response.ok){const copy=response.clone();caches.open(CACHE_NAME).then(cache=>cache.put(request,copy))}return response}).catch(()=>caches.match(request))); return;
   }
