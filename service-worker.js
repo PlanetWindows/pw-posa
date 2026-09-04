@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pw-posa-shell-v9';
+const CACHE_NAME = 'pw-posa-shell-v10';
 const BADGE_STATE_CACHE = 'pw-posa-badge-state-v1';
 const BADGE_STATE_URL = new URL('./__pw_posa_badge_count__', self.location.href).href;
 const APP_SHELL = [
@@ -9,9 +9,12 @@ const APP_SHELL = [
   './enhancements.css',
   './hotfix.css',
   './assistance.css',
+  './assistance-save-archive-calendar-fix.css',
   './assistance.js',
   './assistance-validation-fix.js',
   './assistance-team-fix.js',
+  './assistance-auto-report.js',
+  './assistance-save-archive-calendar-fix.js',
   './logo_planet.svg',
   './app-icon.svg',
   './icon-192-v2.png',
