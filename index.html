@@ -18,6 +18,7 @@
   <link rel="stylesheet" href="enhancements.css?v=20260902-archive2" />
   <link rel="stylesheet" href="hotfix.css?v=20260902-viewer2" />
   <link rel="stylesheet" href="assistance.css?v=20260904-assistance1" />
+  <link rel="stylesheet" href="assistance-save-archive-calendar-fix.css?v=20260904-assistance5" />
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
@@ -51,11 +52,12 @@
   <script src="assistance-validation-fix.js?v=20260904-assistance2"></script>
   <script src="assistance-team-fix.js?v=20260904-assistance3"></script>
   <script src="assistance-auto-report.js?v=20260904-assistance4"></script>
+  <script src="assistance-save-archive-calendar-fix.js?v=20260904-assistance5"></script>
   <script src="password-toggle.js?v=20260903-eye1"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./service-worker.js?v=20260904-assistance3', { scope: './' })
+        navigator.serviceWorker.register('./service-worker.js?v=20260904-assistance5', { scope: './' })
           .then(registration => console.log('PW Posa service worker attivo:', registration.scope))
           .catch(error => console.error('PW Posa service worker:', error));
       });
