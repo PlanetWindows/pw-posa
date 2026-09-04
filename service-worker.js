@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pw-posa-shell-v6';
+const CACHE_NAME = 'pw-posa-shell-v7';
 const BADGE_STATE_CACHE = 'pw-posa-badge-state-v1';
 const BADGE_STATE_URL = new URL('./__pw_posa_badge_count__', self.location.href).href;
 const APP_SHELL = [
@@ -8,6 +8,8 @@ const APP_SHELL = [
   './styles.css',
   './enhancements.css',
   './hotfix.css',
+  './assistance.css',
+  './assistance.js',
   './logo_planet.svg',
   './app-icon.svg',
   './icon-192-v2.png',
