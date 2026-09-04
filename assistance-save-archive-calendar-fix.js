@@ -74,13 +74,32 @@
     finally{saving=false;if(btn){btn.disabled=false;btn.textContent=old||'Salva assistenza'}}
   }
 
+  // Intercetta il click prima che il form possa raggiungere il vecchio salvataggio delle pose.
+  // Questo rende i due flussi completamente separati: Assistenza -> assistances, Posa -> poses.
+  document.addEventListener('click',e=>{
+    const submit=e.target.closest('#poseSubmitBtn');
+    if(submit&&assistanceMode()){
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      saveAssistance();
+      return;
+    }
+    const a=e.target.closest('[data-assistance]'); if(a?.dataset.assistance)activeId=a.dataset.assistance;
+    if(e.target.closest('#newPoseBtn'))activeId=null;
+  },true);
+
   document.addEventListener('submit',e=>{
     if(e.target?.id!=='poseForm'||!assistanceMode())return;
     e.preventDefault(); e.stopImmediatePropagation(); saveAssistance();
   },true);
-  document.addEventListener('click',e=>{
-    const a=e.target.closest('[data-assistance]'); if(a?.dataset.assistance)activeId=a.dataset.assistance;
-    if(e.target.closest('#newPoseBtn'))activeId=null;
+
+  // Evita che Invio dentro i campi Assistenza attivi il vecchio submit della posa.
+  document.addEventListener('keydown',e=>{
+    if(e.key!=='Enter'||!assistanceMode()||!e.target.closest('#assistanceFields'))return;
+    if(e.target.tagName==='TEXTAREA')return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    saveAssistance();
   },true);
 
   function labelCalendar(){
