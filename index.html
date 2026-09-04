@@ -49,11 +49,12 @@
   <script src="notifications.js?v=20260903-notest1"></script>
   <script src="assistance.js?v=20260904-assistance1"></script>
   <script src="assistance-validation-fix.js?v=20260904-assistance2"></script>
+  <script src="assistance-team-fix.js?v=20260904-assistance3"></script>
   <script src="password-toggle.js?v=20260903-eye1"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./service-worker.js?v=20260904-assistance2', { scope: './' })
+        navigator.serviceWorker.register('./service-worker.js?v=20260904-assistance3', { scope: './' })
           .then(registration => console.log('PW Posa service worker attivo:', registration.scope))
           .catch(error => console.error('PW Posa service worker:', error));
       });
