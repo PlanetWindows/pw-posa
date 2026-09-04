@@ -26,6 +26,12 @@
     return data;
   }
 
+  async function getDdt(poseId){
+    const {data,error}=await sb.from('ddt_documents').select('*').eq('pose_id',poseId).maybeSingle();
+    if(error) throw error;
+    return data||null;
+  }
+
   async function getPhotos(poseId){
     const {data,error}=await sb.from('pose_photos').select('id,phase,storage_path,created_at,caption').eq('pose_id',poseId).order('created_at');
     if(error) throw error;
@@ -41,19 +47,14 @@
   async function getReports(ids){
     if(!ids.length) return [];
     const {data,error}=await sb.from('daily_reports').select('*').in('id',ids).order('report_date');
-    if(error){
-      // Non bloccare l'export: i report ID sono comunque sufficienti per cercare il PDF nello Storage.
-      return ids.map(id=>({id,report_number:null,report_date:null,pdf_storage_path:null,pdf_file_name:null}));
-    }
+    if(error) return ids.map(id=>({id,report_number:null,report_date:null,pdf_storage_path:null,pdf_file_name:null}));
     const byId=new Map((data||[]).map(r=>[String(r.id),r]));
     return ids.map(id=>byId.get(String(id))||({id,report_number:null,report_date:null,pdf_storage_path:null,pdf_file_name:null}));
   }
 
   async function fetchBlob(bucket,path){
-    // Prima prova download diretto: funziona con le stesse policy Storage usate dall'app.
     const direct=await sb.storage.from(bucket).download(path);
     if(!direct.error&&direct.data&&direct.data.size>0) return direct.data;
-    // Fallback signed URL.
     const {data,error}=await sb.storage.from(bucket).createSignedUrl(path,300);
     if(error) throw error;
     if(!data?.signedUrl) throw new Error('Link file non disponibile');
@@ -68,24 +69,15 @@
     const folder=`poses/${poseId}/rapportini`;
     const entries=[];
     const seen=new Set();
-
-    // 1) Percorsi noti dal DB oppure percorso deterministico usato dal salvataggio PDF.
     for(const r of reports){
       const candidates=[];
       if(r.pdf_storage_path) candidates.push(r.pdf_storage_path);
       candidates.push(`${folder}/${r.id}.pdf`);
       for(const path of candidates){
         if(!path||seen.has(path)) continue;
-        try{
-          const blob=await fetchBlob('pw-posa-documents',path);
-          entries.push({path,blob,report:r});
-          seen.add(path);
-          break;
-        }catch(_){ }
+        try{const blob=await fetchBlob('pw-posa-documents',path);entries.push({path,blob,report:r});seen.add(path);break;}catch(_){ }
       }
     }
-
-    // 2) Cerca qualunque PDF effettivamente presente nella cartella della posa.
     const {data:list,error}=await sb.storage.from('pw-posa-documents').list(folder,{limit:200,sortBy:{column:'name',order:'asc'}});
     if(!error){
       for(const f of list||[]){
@@ -96,8 +88,7 @@
           const blob=await fetchBlob('pw-posa-documents',path);
           const reportId=f.name.replace(/\.pdf$/i,'');
           const report=reports.find(r=>String(r.id)===reportId)||null;
-          entries.push({path,blob,report});
-          seen.add(path);
+          entries.push({path,blob,report});seen.add(path);
         }catch(_){ }
       }
     }
@@ -125,42 +116,25 @@
 
     try{
       const pose=await getPose(poseId);
-      const [photos,reportIds]=await Promise.all([getPhotos(poseId),getReportLinks(poseId)]);
+      const [photos,reportIds,ddt]=await Promise.all([getPhotos(poseId),getReportLinks(poseId),getDdt(poseId)]);
       const reports=await getReports(reportIds);
       const pdfEntries=await resolvePdfEntries(poseId,reports);
 
       const zip=new JSZip();
       const rapportini=zip.folder('Rapportini');
-      const folders={
-        Foto_Prima:zip.folder('Foto_Prima'),
-        Foto_Durante:zip.folder('Foto_Durante'),
-        Foto_Fine_Posa:zip.folder('Foto_Fine_Posa'),
-        Foto_Segnalazioni:zip.folder('Foto_Segnalazioni'),
-        Foto_Altro:zip.folder('Foto_Altro')
-      };
+      const ddtFolder=zip.folder('DDT');
+      const folders={Foto_Prima:zip.folder('Foto_Prima'),Foto_Durante:zip.folder('Foto_Durante'),Foto_Fine_Posa:zip.folder('Foto_Fine_Posa'),Foto_Segnalazioni:zip.folder('Foto_Segnalazioni'),Foto_Altro:zip.folder('Foto_Altro')};
       const missing=[];
+      let ddtFiles=0;
 
-      const info=[
-        'PW Posa - Fascicolo commessa',
-        '',
-        `Commessa: ${pose.job_number||'—'}`,
-        `Cliente: ${pose.client_name||'—'}`,
-        `Telefono: ${pose.client_phone||'—'}`,
-        `Indirizzo: ${pose.address||'—'}${pose.city?`, ${pose.city}`:''}${pose.postal_code?` ${pose.postal_code}`:''}`,
-        `Data inizio posa: ${fmtDate(pose.scheduled_date)}`,
-        `Data fine posa prevista: ${fmtDate(pose.scheduled_end_date||pose.scheduled_date)}`,
-        '',
-        `Rapportini PDF inclusi: ${pdfEntries.length}`,
-        `Foto incluse: ${photos.length}`
-      ].join('\r\n');
-      zip.file('Dati_Commessa.txt',info);
+      zip.file('Dati_Commessa.txt',[
+        'PW Posa - Fascicolo commessa','',`Commessa: ${pose.job_number||'—'}`,`Cliente: ${pose.client_name||'—'}`,`Telefono: ${pose.client_phone||'—'}`,`Email cliente: ${pose.client_email||'—'}`,`Indirizzo: ${pose.address||'—'}${pose.city?`, ${pose.city}`:''}${pose.postal_code?` ${pose.postal_code}`:''}`,`Data inizio posa: ${fmtDate(pose.scheduled_date)}`,`Data fine posa prevista: ${fmtDate(pose.scheduled_end_date||pose.scheduled_date)}`,'',`Rapportini PDF inclusi: ${pdfEntries.length}`,`Foto incluse: ${photos.length}`,`DDT incluso: ${ddt?'Sì':'No'}`,`Stato email DDT: ${ddt?.email_status||'—'}`
+      ].join('\r\n'));
 
-      // Nomi volutamente semplici e leggibili.
       for(let i=0;i<pdfEntries.length;i++){
         const e=pdfEntries[i];
         const date=e.report?.report_date?String(e.report.report_date).split('-').reverse().join('-'):'';
-        const name=date?`Rapportino_${date}.pdf`:`Rapportino_${pad(i+1)}.pdf`;
-        rapportini.file(name,e.blob);
+        rapportini.file(date?`Rapportino_${date}.pdf`:`Rapportino_${pad(i+1)}.pdf`,e.blob);
       }
 
       const counters={};
@@ -170,10 +144,20 @@
         counters[folderName]=(counters[folderName]||0)+1;
         try{
           const blob=await fetchBlob('pw-posa-photos',ph.storage_path);
-          const ext=extension(ph.storage_path,blob);
-          // Dentro ogni cartella: Foto_01.jpg, Foto_02.jpg ... senza timestamp tecnici.
-          folders[folderName].file(`Foto_${pad(counters[folderName])}${ext}`,blob);
+          folders[folderName].file(`Foto_${pad(counters[folderName])}${extension(ph.storage_path,blob)}`,blob);
         }catch(err){missing.push(`Foto ${ph.id||''} (${ph.phase||'senza fase'}): ${err.message}`);}
+      }
+
+      if(ddt){
+        if(ddt.original_path){
+          try{ddtFolder.file(`DDT_Originale_${safeName(ddt.original_name||'documento.pdf')}`,await fetchBlob('pw-ddt-private',ddt.original_path));ddtFiles++;}
+          catch(err){missing.push(`DDT originale: ${err.message}`);}
+        }
+        if(ddt.signed_path){
+          try{ddtFolder.file(`DDT_Firmato_${safeName(ddt.signed_name||'DDT_firmato.pdf')}`,await fetchBlob('pw-ddt-private',ddt.signed_path));ddtFiles++;}
+          catch(err){missing.push(`DDT firmato: ${err.message}`);}
+        }
+        ddtFolder.file('Stato_DDT.txt',[`Email cliente: ${pose.client_email||'—'}`,`Stato invio: ${ddt.email_status||'pending'}`,`Firmato il: ${ddt.signed_at?new Date(ddt.signed_at).toLocaleString('it-IT'):'—'}`].join('\r\n'));
       }
 
       if(missing.length) zip.file('File_non_inclusi.txt',missing.join('\r\n'));
@@ -181,31 +165,13 @@
       const blob=await zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:6}});
       if(!blob?.size) throw new Error('ZIP generato vuoto');
       const filename=`POSA_${safeName(pose.job_number||pose.id)}.zip`;
-
-      // Desktop: download classico. Mobile: share se disponibile.
       const file=new File([blob],filename,{type:'application/zip'});
       if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
-        try{
-          await navigator.share({files:[file],title:`Fascicolo ${pose.job_number}`});
-          toast(`Fascicolo esportato: ${pdfEntries.length} PDF, ${photos.length} foto`);
-          return;
-        }catch(err){if(err?.name==='AbortError') return;}
+        try{await navigator.share({files:[file],title:`Fascicolo ${pose.job_number}`});toast(`Fascicolo esportato: ${pdfEntries.length} PDF, ${photos.length} foto, ${ddtFiles} file DDT`);return;}catch(err){if(err?.name==='AbortError') return;}
       }
-      const url=URL.createObjectURL(blob);
-      const a=document.createElement('a');
-      a.href=url;
-      a.download=filename;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      setTimeout(()=>URL.revokeObjectURL(url),30000);
-      toast(`Fascicolo esportato: ${pdfEntries.length} PDF, ${photos.length} foto`);
-    }catch(err){
-      toast(`Esportazione: ${err.message}`);
-      console.error('PW Posa export v3',err);
-    }finally{
-      if(button){button.disabled=false;button.textContent='Esporta fascicolo';}
-    }
+      const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),30000);
+      toast(`Fascicolo esportato: ${pdfEntries.length} PDF, ${photos.length} foto, ${ddtFiles} file DDT`);
+    }catch(err){toast(`Esportazione: ${err.message}`);console.error('PW Posa export v3',err);}finally{if(button){button.disabled=false;button.textContent='Esporta fascicolo';}}
   }
 
   function injectButton(){
@@ -214,22 +180,13 @@
     if(host.querySelector('[data-export-dossier]')) return;
     getProfile().then(p=>{
       if(!['office_scheduler','office_viewer'].includes(p?.role)) return;
-      const head=host.querySelector('.archive-dossier-head');
-      if(!head) return;
-      const btn=document.createElement('button');
-      btn.type='button';
-      btn.className='btn primary archive-export-btn';
-      btn.dataset.exportDossier=currentPoseId;
-      btn.textContent='Esporta fascicolo';
-      const back=head.querySelector('#archiveCloseDossier');
-      if(back) back.insertAdjacentElement('beforebegin',btn); else head.appendChild(btn);
+      const head=host.querySelector('.archive-dossier-head');if(!head) return;
+      const btn=document.createElement('button');btn.type='button';btn.className='btn primary archive-export-btn';btn.dataset.exportDossier=currentPoseId;btn.textContent='Esporta fascicolo';
+      const back=head.querySelector('#archiveCloseDossier');if(back) back.insertAdjacentElement('beforebegin',btn); else head.appendChild(btn);
       btn.addEventListener('click',()=>exportDossier(currentPoseId,btn));
     }).catch(err=>console.warn('Export dossier v3',err));
   }
 
-  document.addEventListener('click',e=>{
-    const open=e.target.closest('[data-archive-pose]');
-    if(open?.dataset.archivePose){currentPoseId=open.dataset.archivePose;setTimeout(injectButton,60);}
-  },true);
+  document.addEventListener('click',e=>{const open=e.target.closest('[data-archive-pose]');if(open?.dataset.archivePose){currentPoseId=open.dataset.archivePose;setTimeout(injectButton,60);}},true);
   new MutationObserver(()=>setTimeout(injectButton,0)).observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['class']});
 })();
