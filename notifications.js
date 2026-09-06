@@ -6,6 +6,7 @@
   const pushSb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
   let button = null;
   let busy = false;
+  let clearingBadge = false;
   const mobileQuery = window.matchMedia('(max-width: 900px)');
 
   function base64UrlToUint8Array(base64Url) {
@@ -82,15 +83,30 @@
   }
 
   async function clearAppBadge() {
+    if (clearingBadge) return;
+    clearingBadge = true;
     try {
+      // iOS/Android PWA badge on the installed app icon.
       if ('clearAppBadge' in navigator) await navigator.clearAppBadge();
       else if ('setAppBadge' in navigator) await navigator.setAppBadge(0);
+
+      // Also reset the counter persisted by the service worker, otherwise the
+      // next push would continue from the old number (e.g. 10 -> 11).
       const registration = await getRegistration();
       const worker = registration.active || registration.waiting || registration.installing;
       worker?.postMessage({ type: 'PW_POSA_CLEAR_BADGE' });
     } catch (error) {
       console.warn('PW Posa: impossibile azzerare il badge', error);
+    } finally {
+      clearingBadge = false;
     }
+  }
+
+  async function clearBadgeWhenAppIsOpen() {
+    if (document.visibilityState !== 'visible') return;
+    const user = await currentUser().catch(() => null);
+    if (!user) return;
+    await clearAppBadge();
   }
 
   function setButtonState(active) {
@@ -154,9 +170,23 @@
     mountButton();
     setTimeout(refreshButton, 800);
     setTimeout(refreshButton, 2200);
+    setTimeout(clearBadgeWhenAppIsOpen, 400);
+    setTimeout(clearBadgeWhenAppIsOpen, 1800);
+  });
+
+  // Important on iPhone/PWA: opening the app from the Home Screen does not
+  // necessarily trigger a notification click. Clear the badge whenever the
+  // already-authenticated app comes back to the foreground.
+  window.addEventListener('pageshow', () => setTimeout(clearBadgeWhenAppIsOpen, 100));
+  window.addEventListener('focus', () => setTimeout(clearBadgeWhenAppIsOpen, 100));
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') setTimeout(clearBadgeWhenAppIsOpen, 100);
   });
 
   if (mobileQuery.addEventListener) mobileQuery.addEventListener('change', placeButton);
   else mobileQuery.addListener(placeButton);
-  pushSb.auth.onAuthStateChange(() => setTimeout(refreshButton, 150));
+  pushSb.auth.onAuthStateChange((_event, session) => {
+    setTimeout(refreshButton, 150);
+    if (session?.user) setTimeout(clearBadgeWhenAppIsOpen, 250);
+  });
 })();
