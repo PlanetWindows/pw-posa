@@ -4,6 +4,7 @@ const admin=createClient(SUPABASE_URL,SERVICE_ROLE_KEY,{auth:{persistSession:fal
 const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type","Content-Type":"application/json"};
 const json=(d:unknown,s=200)=>new Response(JSON.stringify(d),{status:s,headers:cors}),safe=(v:unknown)=>String(v??"").trim();
 function b64(bytes:Uint8Array){let out="";for(let i=0;i<bytes.length;i+=0x8000)out+=String.fromCharCode(...bytes.subarray(i,Math.min(i+0x8000,bytes.length)));return btoa(out)}
+function errText(e:unknown){if(e instanceof Error)return e.message;try{return JSON.stringify(e)}catch{return String(e)}}
 async function read(bucket:string,path:string){const {data,error}=await admin.storage.from(bucket).download(path);if(error||!data)throw error||new Error("Documento non disponibile");return new Uint8Array(await data.arrayBuffer())}
 Deno.serve(async req=>{
   let ddtId="";
@@ -23,7 +24,7 @@ Deno.serve(async req=>{
     ]);
     if(pe||!pose||re||!report||le||!link)return json({error:"Posa o rapportino non accessibili"},403);
     const ddt=ddts?.[0]||null;if(de)throw de;if(!ddt)return json({error:"DDT non presente"},409);ddtId=ddt.id;
-    if(ddt.email_status==="pose_package_sent")return json({ok:true,already_sent:true,attachments:2});
+    if(ddt.email_status==="sent")return json({ok:true,already_sent:true,attachments:2});
     if(!report.pdf_storage_path)return json({error:"Rapportino firmato non disponibile"},409);
     if(!ddt.signed_path)return json({error:"DDT firmato non disponibile"},409);
     if(!safe(pose.client_email))return json({error:"Email cliente mancante"},409);
@@ -33,7 +34,7 @@ Deno.serve(async req=>{
     const rr=await fetch("https://api.resend.com/emails",{method:"POST",headers:{Authorization:`Bearer ${RESEND_API_KEY}`,"Content-Type":"application/json","Idempotency-Key":`pose-package-${poseId}-${reportId}`},body:JSON.stringify({from:FROM_EMAIL,to:[pose.client_email],subject:`Planet Windows · Posa ${pose.job_number}`,html:`<p>Gentile ${pose.client_name},</p><p>in allegato trova la documentazione firmata relativa alla posa <strong>${pose.job_number}</strong>: rapportino di posa e DDT firmato.</p><p>Grazie,<br>Planet Windows</p>`,attachments})});
     if(!rr.ok)throw new Error(`Servizio email: ${rr.status} ${await rr.text()}`);
     const resendPayload=await rr.json().catch(()=>null);
-    const {error:du}=await admin.from("ddt_documents").update({email_status:"pose_package_sent",email_last_error:null}).eq("id",ddt.id);if(du)throw du;
+    const {error:du}=await admin.from("ddt_documents").update({email_status:"sent",email_last_error:null}).eq("id",ddt.id);if(du)throw new Error(`Stato email DDT: ${errText(du)}`);
     return json({ok:true,already_sent:false,attachments:2,email_id:resendPayload?.id||null});
-  }catch(e){const message=e instanceof Error?e.message:String(e);console.error(e);if(ddtId)await admin.from("ddt_documents").update({email_last_error:message}).eq("id",ddtId);return json({ok:false,error:message},500)}
+  }catch(e){const message=errText(e);console.error(e);if(ddtId)await admin.from("ddt_documents").update({email_last_error:message}).eq("id",ddtId);return json({ok:false,error:message},500)}
 });
