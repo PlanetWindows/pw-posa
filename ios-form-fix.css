@@ -1,0 +1,20 @@
+@supports (-webkit-touch-callout:none){
+  @media(max-width:900px){
+    /* Prevent Safari auto-zoom/reflow when focusing form fields. */
+    input,select,textarea{font-size:16px!important;line-height:1.35!important;-webkit-text-size-adjust:100%;}
+
+    /* iOS behaves more smoothly with a fixed modal viewport than with dynamic 100dvh while the keyboard opens. */
+    #poseDialog.pose-modal{position:fixed!important;inset:8px!important;width:auto!important;max-width:none!important;height:auto!important;max-height:none!important;margin:0!important;border-radius:18px!important;transform:none!important;}
+    #poseDialog .modal-layout{height:100%!important;min-height:0!important;}
+    #poseDialog .modal-scroll{overflow-y:auto!important;-webkit-overflow-scrolling:auto!important;overscroll-behavior:auto!important;touch-action:auto!important;scrollbar-gutter:auto!important;}
+
+    /* Avoid expensive effects during keyboard opening/typing. */
+    #poseDialog,#poseDialog *{transition:none!important;animation:none!important;}
+    #poseDialog{box-shadow:0 8px 30px rgba(33,29,30,.16)!important;}
+    #poseDialog::backdrop{backdrop-filter:none!important;-webkit-backdrop-filter:none!important;}
+
+    /* Keep fields simple and stable during text entry. */
+    #poseDialog input,#poseDialog select,#poseDialog textarea{transform:none!important;filter:none!important;box-shadow:none!important;}
+    #poseDialog textarea{resize:none!important;}
+  }
+}
