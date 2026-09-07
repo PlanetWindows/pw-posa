@@ -1,4 +1,5 @@
 (()=>{
+  window.PW_ASSISTANCE_CLOSE_FLOW_V2=true;
   const cfg=window.PW_POSA_CONFIG||{};
   if(!window.supabase||!cfg.SUPABASE_URL||!cfg.SUPABASE_ANON_KEY)return;
   const sb=window.supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY);
@@ -12,7 +13,7 @@
   const clearDraft=id=>{try{sessionStorage.removeItem(draftKey(id))}catch{}};
 
   async function loadProfile(){const {data:{session}}=await sb.auth.getSession();if(!session)return null;const {data}=await sb.from('profiles').select('role').eq('id',session.user.id).maybeSingle();profile=data||null;return profile;}
-  function hideLegacy(root){root.querySelectorAll('[data-auto-assistance-report],[data-ddt-card]').forEach(el=>{if(!el.closest('[data-assistance-close-flow]'))el.style.display='none'});}
+  function hideLegacy(root){root.querySelectorAll('[data-auto-assistance-report]').forEach(el=>el.remove());root.querySelectorAll('[data-ddt-card]').forEach(el=>{if(!el.closest('[data-assistance-close-flow]'))el.style.display='none'});}
 
   function collect(id){const old=readDraft(id);const d={...old,intervention:$('closeAssIntervention')?.value??old.intervention??'',resolved:document.querySelector('input[name="closeAssResolved"]:checked')?.value??old.resolved??'',notes:$('closeAssNotes')?.value??old.notes??'',signer:$('closeAssSigner')?.value??old.signer??''};saveDraft(id,d);return d;}
 
