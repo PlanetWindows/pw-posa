@@ -1,0 +1,21 @@
+@supports (-webkit-touch-callout: none) {
+  html,body{min-height:100%;-webkit-text-size-adjust:100%}
+  body{-webkit-tap-highlight-color:transparent}
+  button,.btn,.nav-item,.pose-chip,.icon-btn{touch-action:manipulation}
+  .content,.dialog.wide,#poseDialog .modal-scroll,.calendar-month-wrap,.table-wrap,.nav{
+    -webkit-overflow-scrolling:touch;
+    overscroll-behavior:contain;
+    scroll-behavior:auto;
+  }
+  .dialog.wide,#poseDialog.pose-modal{transform:translateZ(0);backface-visibility:hidden}
+  .calendar-day,.detail-card,.action-card,.report-card,.document-row{
+    content-visibility:auto;
+    contain-intrinsic-size:160px;
+  }
+  .push-notifications-toggle,.btn,.nav-item,.pose-chip{transition:none!important}
+}
+@media(max-width:900px){
+  .dialog.wide{max-height:calc(100dvh - 8px)}
+  #poseDialog.pose-modal{height:calc(100dvh - 8px)}
+  .content{contain:layout style}
+}
