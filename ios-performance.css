@@ -2,20 +2,61 @@
   html,body{min-height:100%;-webkit-text-size-adjust:100%}
   body{-webkit-tap-highlight-color:transparent}
   button,.btn,.nav-item,.pose-chip,.icon-btn{touch-action:manipulation}
-  .content,.dialog.wide,#poseDialog .modal-scroll,.calendar-month-wrap,.table-wrap,.nav{
+
+  /* IMPORTANT FOR IPHONE: 16px prevents Safari auto-zoom and the heavy relayout
+     that was happening when focusing fields such as Cliente. */
+  input,select,textarea{font-size:16px!important;line-height:1.35!important;-webkit-text-size-adjust:100%}
+
+  .content,.dialog.wide,.calendar-month-wrap,.table-wrap,.nav{
     -webkit-overflow-scrolling:touch;
     overscroll-behavior:contain;
     scroll-behavior:auto;
   }
-  .dialog.wide,#poseDialog.pose-modal{transform:translateZ(0);backface-visibility:hidden}
+
+  /* Do not GPU-promote dialogs containing text inputs: on iOS this can freeze or
+     stutter when the software keyboard opens. */
+  .dialog.wide,#poseDialog.pose-modal{transform:none!important;backface-visibility:visible!important}
+
   .calendar-day,.detail-card,.action-card,.report-card,.document-row{
     content-visibility:auto;
     contain-intrinsic-size:160px;
   }
   .push-notifications-toggle,.btn,.nav-item,.pose-chip{transition:none!important}
-}
-@media(max-width:900px){
-  .dialog.wide{max-height:calc(100dvh - 8px)}
-  #poseDialog.pose-modal{height:calc(100dvh - 8px)}
-  .content{contain:layout style}
+
+  @media(max-width:900px){
+    /* Keep the form viewport stable while the iPhone keyboard opens. Avoid 100dvh,
+       which Safari recalculates continuously during keyboard animation. */
+    #poseDialog.pose-modal{
+      position:fixed!important;
+      inset:8px!important;
+      width:auto!important;
+      max-width:none!important;
+      height:auto!important;
+      max-height:none!important;
+      margin:0!important;
+      border-radius:18px!important;
+      box-shadow:0 8px 30px rgba(33,29,30,.16)!important;
+    }
+    #poseDialog .modal-layout{height:100%!important;min-height:0!important}
+    #poseDialog .modal-scroll{
+      overflow-y:auto!important;
+      overflow-x:hidden!important;
+      -webkit-overflow-scrolling:auto!important;
+      overscroll-behavior:auto!important;
+      touch-action:auto!important;
+      scrollbar-gutter:auto!important;
+    }
+    #poseDialog,#poseDialog *{transition:none!important;animation:none!important}
+    #poseDialog input,#poseDialog select,#poseDialog textarea{
+      transform:none!important;
+      filter:none!important;
+      box-shadow:none!important;
+      min-height:44px;
+    }
+    #poseDialog textarea{resize:none!important}
+    #poseDialog::backdrop{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}
+
+    .dialog.wide{max-height:calc(100svh - 8px)}
+    .content{contain:layout style}
+  }
 }
