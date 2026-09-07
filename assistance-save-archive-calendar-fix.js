@@ -70,7 +70,8 @@
       if(window.PW_DDT) await window.PW_DDT.saveForAssistance(id);
       toast('Assistenza salvata');
       $('poseDialog')?.close();
-      setTimeout(()=>location.reload(),650);
+      activeId=null;
+      window.dispatchEvent(new CustomEvent('pwposa:assistance-saved',{detail:{assistance_id:id}}));
     }catch(e){if(e.message!=='__validation__'){console.error(e);toast(e.message||String(e))}}
     finally{saving=false;if(btn){btn.disabled=false;btn.textContent=old||'Salva assistenza'}}
   }
@@ -135,5 +136,6 @@
 
   let t; const refresh=()=>{clearTimeout(t);t=setTimeout(()=>{labelCalendar();appendArchive()},100)};
   new MutationObserver(refresh).observe(document.body,{childList:true,subtree:true});
+  window.addEventListener('pwposa:assistance-saved',()=>setTimeout(refresh,80));
   window.addEventListener('load',()=>setTimeout(refresh,400));
 })();
