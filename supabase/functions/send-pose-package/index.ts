@@ -34,7 +34,8 @@ Deno.serve(async req=>{
     const rr=await fetch("https://api.resend.com/emails",{method:"POST",headers:{Authorization:`Bearer ${RESEND_API_KEY}`,"Content-Type":"application/json","Idempotency-Key":`pose-package-${poseId}-${reportId}`},body:JSON.stringify({from:FROM_EMAIL,to:[pose.client_email],subject:`Planet Windows · Posa ${pose.job_number}`,html:`<p>Gentile ${pose.client_name},</p><p>in allegato trova la documentazione firmata relativa alla posa <strong>${pose.job_number}</strong>: rapportino di posa e DDT firmato.</p><p>Grazie,<br>Planet Windows</p>`,attachments})});
     if(!rr.ok)throw new Error(`Servizio email: ${rr.status} ${await rr.text()}`);
     const resendPayload=await rr.json().catch(()=>null);
-    const {error:du}=await admin.from("ddt_documents").update({email_status:"sent",email_last_error:null}).eq("id",ddt.id);if(du)throw new Error(`Stato email DDT: ${errText(du)}`);
+    const {error:du}=await admin.from("ddt_documents").update({email_status:"sent",email_last_error:null}).eq("id",ddt.id);
+    if(du){console.error("Mail inviata ma stato DDT non aggiornato",du);return json({ok:true,already_sent:false,attachments:2,email_id:resendPayload?.id||null,state_warning:errText(du)});}
     return json({ok:true,already_sent:false,attachments:2,email_id:resendPayload?.id||null});
   }catch(e){const message=errText(e);console.error(e);if(ddtId)await admin.from("ddt_documents").update({email_last_error:message}).eq("id",ddtId);return json({ok:false,error:message},500)}
 });
