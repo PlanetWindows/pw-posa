@@ -3,7 +3,7 @@
   if(!window.supabase||!cfg.SUPABASE_URL||!cfg.SUPABASE_ANON_KEY)return;
   const sb=window.supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY);
   const $=id=>document.getElementById(id);
-  const esc=v=>String(v??'').replace(/[&<>"']/g,s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[s]));
+  const esc=v=>String(v??'').replace(/[&<>"']/g,s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#039;'}[s]));
   const toast=m=>{const e=$('toast');if(!e)return alert(m);e.textContent=m;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),4200)};
   let profile=null,currentId=null,busy=false;
   const key=id=>`pw-ass-close-v3:${id}`;
@@ -21,6 +21,11 @@
   function removeLegacy(root){
     root.querySelectorAll('[data-auto-assistance-report]').forEach(x=>x.remove());
     root.querySelectorAll('[data-assistance-close-flow],[data-assistance-close-flow-v3]').forEach((x,i)=>{if(i>0)x.remove()});
+    [...root.querySelectorAll('.ass-detail-section')].forEach(section=>{
+      if(section.hasAttribute('data-assistance-close-flow-v3'))return;
+      const text=(section.textContent||'').replace(/\s+/g,' ').trim().toLowerCase();
+      if(text.startsWith('documenti')||text.includes('firma non disponibile')||text.includes('firma digitale cliente')||text.includes('rapportino di fine assistenza')||text.includes('modulo firmato dal cliente'))section.remove();
+    });
     [...root.querySelectorAll('button')].forEach(btn=>{
       if(/conferma\s*(,|e)?\s*genera\s*pdf/i.test((btn.textContent||'').trim())){
         const section=btn.closest('.ass-detail-section');
