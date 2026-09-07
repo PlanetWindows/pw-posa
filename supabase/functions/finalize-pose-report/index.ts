@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { PDFDocument, StandardFonts, rgb } from "npm:pdf-lib@1.17.1";
+import { LOGO_PNG_B64 } from "./logo.ts";
 
 const SUPABASE_URL=Deno.env.get("SUPABASE_URL")!;
 const ANON_KEY=Deno.env.get("SUPABASE_ANON_KEY")!;
@@ -11,6 +12,7 @@ const json=(d:unknown,s=200)=>new Response(JSON.stringify(d),{status:s,headers:c
 const safe=(v:unknown)=>String(v??"").trim();
 const fmtDate=(v:unknown)=>{const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(safe(v));return m?`${m[3]}/${m[2]}/${m[1]}`:safe(v)||"-"};
 function pngBytes(v:string){if(!v.startsWith("data:image/png;base64,"))throw new Error("Firma posatore obbligatoria o formato non valido");return Uint8Array.from(atob(v.split(",")[1]),c=>c.charCodeAt(0));}
+function b64Bytes(v:string){return Uint8Array.from(atob(v),c=>c.charCodeAt(0));}
 
 async function makePdf(report:any,pose:any,signature:string,ts:Date){
   const pdf=await PDFDocument.create();
@@ -25,7 +27,9 @@ async function makePdf(report:any,pose:any,signature:string,ts:Date){
   const row=(k:string,v:string)=>{const ls=lines(v,68),h=Math.max(24,ls.length*12+9);ensure(h);page.drawText(`${k}:`,{x:L,y,size:10,font:bold,color:black});let ty=y;for(const ln of ls){page.drawText(ln,{x:L+124,y:ty,size:10,font:reg,color:black});ty-=12}y-=h};
   const block=(k:string,v:string,min=56)=>{const ls=lines(v,92),h=Math.max(min,30+ls.length*12);ensure(h+12);page.drawRectangle({x:L,y:y-h+8,width:W,height:h,borderColor:line,borderWidth:.8,color:soft});page.drawText(k.toUpperCase(),{x:L+12,y:y-11,size:8.5,font:bold,color:gold});let ty=y-29;for(const ln of ls){page.drawText(ln,{x:L+12,y:ty,size:9.5,font:reg,color:black});ty-=12}y-=h+12};
 
-  page.drawText("PLANET WINDOWS",{x:L,y:798,size:18,font:bold,color:black});
+  const logo=await pdf.embedPng(b64Bytes(LOGO_PNG_B64));
+  const logoW=150,logoH=logoW*logo.height/logo.width;
+  page.drawImage(logo,{x:L,y:783,width:logoW,height:logoH});
   page.drawLine({start:{x:L,y:754},end:{x:R,y:754},thickness:2.2,color:gold});
   page.drawText("RAPPORTINO DI FINE GIORNATA",{x:L,y:722,size:20,font:bold,color:black});
   page.drawText(`Numero: ${safe(report.report_number)||"-"}`,{x:L,y:704,size:10,font:reg,color:muted});
