@@ -1,41 +1,36 @@
 (()=>{
-  let pendingAssistanceSave=false;
-  let suppressUntil=0;
-
-  const isAssistanceMode=()=>{
-    const selected=document.querySelector('[data-program-type="assistance"].active');
+  function isAssistanceMode(){
     const fields=document.getElementById('assistanceFields');
-    return !!selected && !!fields && !fields.classList.contains('hidden');
-  };
+    return !!fields && !fields.classList.contains('hidden');
+  }
 
   function init(){
     const form=document.getElementById('poseForm');
     const dialog=document.getElementById('poseDialog');
     if(!form||!dialog)return;
 
-    form.addEventListener('submit',()=>{
-      if(isAssistanceMode()) pendingAssistanceSave=true;
+    // IMPORTANT: assistance.js owns the submit when the Assistance tab is active.
+    // Stop the event before app.js/savePose can process the same submit as a normal pose.
+    form.addEventListener('submit',e=>{
+      if(!isAssistanceMode())return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
     },true);
 
+    // Safety net: after a successful assistance close, do not allow a stale async
+    // normal-pose handler to reopen the shared dialog.
+    let justClosedAt=0;
     dialog.addEventListener('close',()=>{
-      if(!pendingAssistanceSave)return;
-      pendingAssistanceSave=false;
-      suppressUntil=Date.now()+1800;
+      if(isAssistanceMode()) justClosedAt=Date.now();
     });
-
-    const observer=new MutationObserver(()=>{
-      if(Date.now()>=suppressUntil)return;
-      if(dialog.open){
-        try{dialog.close()}catch{}
-      }
-    });
-    observer.observe(dialog,{attributes:true,attributeFilter:['open']});
+    const nativeShow=dialog.showModal.bind(dialog);
+    dialog.showModal=function(){
+      if(Date.now()-justClosedAt<2500 && isAssistanceMode()) return;
+      return nativeShow();
+    };
 
     document.addEventListener('click',e=>{
-      if(e.target.closest('#newPoseBtn')){
-        pendingAssistanceSave=false;
-        suppressUntil=0;
-      }
+      if(e.target.closest('#newPoseBtn')) justClosedAt=0;
     },true);
   }
 
