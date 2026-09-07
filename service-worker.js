@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pw-posa-shell-v18';
+const CACHE_NAME = 'pw-posa-shell-v19';
 const BADGE_STATE_CACHE = 'pw-posa-badge-state-v1';
 const BADGE_STATE_URL = new URL('./__pw_posa_badge_count__', self.location.href).href;
 const APP_SHELL = [
@@ -6,7 +6,7 @@ const APP_SHELL = [
   './assistance.css', './assistance-save-archive-calendar-fix.css', './assistance.js',
   './assistance-validation-fix.js', './assistance-team-fix.js', './assistance-close-flow-v4.js', './calendar-assistance-render.js',
   './ddt.css', './ddt.js', './ddt-bootstrap.js', './ddt-pose-save.js', './pose-close-flow.js',
-  './logo_planet.svg', './app-icon.svg', './icon-192-v2.png', './icon-512-v2.png',
+  './logo_planet.svg', './app-icon.svg', './notification-badge.png', './icon-192-v2.png', './icon-512-v2.png',
   './icon-1024-v2.png', './icon-maskable-512-v2.png', './apple-touch-icon-v2.png'
 ];
 self.addEventListener('install', event => { event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL)).then(() => self.skipWaiting())); });
@@ -21,7 +21,7 @@ self.addEventListener('fetch', event => {
   }
   event.respondWith(caches.match(request).then(cached=>{const network=fetch(request).then(response=>{if(response&&response.ok){const copy=response.clone();caches.open(CACHE_NAME).then(cache=>cache.put(request,copy))}return response}).catch(()=>cached);return cached||network}));
 });
-self.addEventListener('push', event => { let data={}; try{data=event.data?event.data.json():{}}catch{data={body:event.data?event.data.text():''}} event.waitUntil((async()=>{const explicitBadge=[data.badgeCount,data.badge_count,data.badge].map(Number).find(v=>Number.isFinite(v)&&v>=0);const badgeCount=explicitBadge==null?(await readBadgeCount())+1:Math.floor(explicitBadge);await writeBadgeCount(badgeCount);const options={body:data.body||'Hai una nuova notifica.',icon:'./icon-192-v2.png',silent:false,vibrate:[220,100,220],data:{url:data.url||'./',badgeCount},tag:data.tag||'pw-posa',renotify:true};const tasks=[self.registration.showNotification(data.title||'PW Posa',options)];if('setAppBadge'in self.navigator)tasks.push(self.navigator.setAppBadge(badgeCount).catch(()=>{}));await Promise.all(tasks)})()); });
+self.addEventListener('push', event => { let data={}; try{data=event.data?event.data.json():{}}catch{data={body:event.data?event.data.text():''}} event.waitUntil((async()=>{const explicitBadge=[data.badgeCount,data.badge_count,data.badge].map(Number).find(v=>Number.isFinite(v)&&v>=0);const badgeCount=explicitBadge==null?(await readBadgeCount())+1:Math.floor(explicitBadge);await writeBadgeCount(badgeCount);const options={body:data.body||'Hai una nuova notifica.',icon:'./icon-192-v2.png',badge:'./notification-badge.png',silent:false,vibrate:[220,100,220],data:{url:data.url||'./',badgeCount},tag:data.tag||'pw-posa',renotify:true};const tasks=[self.registration.showNotification(data.title||'PW Posa',options)];if('setAppBadge'in self.navigator)tasks.push(self.navigator.setAppBadge(badgeCount).catch(()=>{}));await Promise.all(tasks)})()); });
 self.addEventListener('notificationclick', event => {event.notification.close();const targetUrl=new URL(event.notification.data?.url||'./',self.location.href).href;event.waitUntil((async()=>{await clearStoredBadge();const windows=await clients.matchAll({type:'window',includeUncontrolled:true});for(const client of windows){if('focus'in client){if('navigate'in client)await client.navigate(targetUrl);return client.focus()}}if(clients.openWindow)return clients.openWindow(targetUrl)})())});
 self.addEventListener('message',event=>{if(event.data?.type==='PW_POSA_CLEAR_BADGE')event.waitUntil(clearStoredBadge())});
 async function readBadgeCount(){try{const cache=await caches.open(BADGE_STATE_CACHE),response=await cache.match(BADGE_STATE_URL);if(!response)return 0;const value=Number(await response.text());return Number.isFinite(value)&&value>0?Math.floor(value):0}catch{return 0}}
