@@ -7,6 +7,7 @@
     loadOnce('ddt-dedupe.js?v=20260904-ddt5','data-ddt-dedupe');
     loadOnce('ddt-archive.js?v=20260904-ddt5','data-ddt-archive-script');
     loadOnce('ddt-email-retry.js?v=20260904-ddt5','data-ddt-email-retry');
+    loadOnce('pose-close-flow.js?v=20260907-poseunified1','data-pose-close-flow');
   }
   function bootDdtAfterAssistance(){
     if(document.getElementById('poseDdtBlock')){ensureExtras();return;}
