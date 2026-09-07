@@ -14,14 +14,16 @@ Deno.serve(async req=>{
     const auth=req.headers.get("Authorization")||"";if(!auth)return json({error:"Sessione mancante"},401);
     const uc=createClient(SUPABASE_URL,ANON_KEY,{global:{headers:{Authorization:auth}},auth:{persistSession:false,autoRefreshToken:false}});
     const {data:{user}}=await uc.auth.getUser();if(!user)return json({error:"Utente non autenticato"},401);
-    const {data:p}=await admin.from("profiles").select("role,active").eq("id",user.id).maybeSingle();if(p?.role!=="installer"||p?.active===false)return json({error:"Solo il posatore può completare l'invio"},403);
+    const {data:profiles,error:profileError}=await admin.from("profiles").select("role,active").eq("id",user.id).limit(1);
+    const p=profiles?.[0]||null;if(profileError||p?.role!=="installer"||p?.active===false)return json({error:"Solo il posatore può completare l'invio"},403);
     const b=await req.json(),poseId=safe(b.pose_id),reportId=safe(b.report_id);if(!poseId||!reportId)return json({error:"pose_id e report_id obbligatori"},400);
-    const [{data:pose,error:pe},{data:report,error:re},{data:link,error:le},{data:ddts,error:de}]=await Promise.all([
-      uc.from("poses").select("*").eq("id",poseId).single(),
-      uc.from("daily_reports").select("*").eq("id",reportId).single(),
-      uc.from("daily_report_poses").select("report_id").eq("report_id",reportId).eq("pose_id",poseId).maybeSingle(),
+    const [{data:poses,error:pe},{data:reports,error:re},{data:links,error:le},{data:ddts,error:de}]=await Promise.all([
+      uc.from("poses").select("*").eq("id",poseId).limit(1),
+      uc.from("daily_reports").select("*").eq("id",reportId).limit(1),
+      uc.from("daily_report_poses").select("report_id").eq("report_id",reportId).eq("pose_id",poseId).limit(1),
       admin.from("ddt_documents").select("*").eq("pose_id",poseId).order("created_at",{ascending:false}).limit(1)
     ]);
+    const pose=poses?.[0]||null,report=reports?.[0]||null,link=links?.[0]||null;
     if(pe||!pose||re||!report||le||!link)return json({error:"Posa o rapportino non accessibili"},403);
     const ddt=ddts?.[0]||null;if(de)throw de;if(!ddt)return json({error:"DDT non presente"},409);ddtId=ddt.id;
     if(ddt.email_status==="sent")return json({ok:true,already_sent:true,attachments:2});
