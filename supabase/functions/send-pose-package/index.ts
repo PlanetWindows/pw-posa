@@ -5,6 +5,7 @@ const cors={"Access-Control-Allow-Origin":"*","Access-Control-Allow-Headers":"au
 const json=(d:unknown,s=200)=>new Response(JSON.stringify(d),{status:s,headers:cors}),safe=(v:unknown)=>String(v??"").trim();
 function b64(bytes:Uint8Array){let out="";for(let i=0;i<bytes.length;i+=0x8000)out+=String.fromCharCode(...bytes.subarray(i,Math.min(i+0x8000,bytes.length)));return btoa(out)}
 function errText(e:unknown){if(e instanceof Error)return e.message;try{return JSON.stringify(e)}catch{return String(e)}}
+function compactKey(v:unknown){return safe(v).replace(/[^a-zA-Z0-9_-]+/g,"-").slice(-48)||"na"}
 async function read(bucket:string,path:string){const {data,error}=await admin.storage.from(bucket).download(path);if(error||!data)throw error||new Error("Documento non disponibile");return new Uint8Array(await data.arrayBuffer())}
 Deno.serve(async req=>{
   let ddtId="";
@@ -33,7 +34,9 @@ Deno.serve(async req=>{
     if(!RESEND_API_KEY)throw new Error("RESEND_API_KEY non configurata");
     const [reportBytes,ddtBytes]=await Promise.all([read("pw-posa-documents",report.pdf_storage_path),read("pw-ddt-private",ddt.signed_path)]);
     const attachments=[{filename:report.pdf_file_name||"Rapportino_Posa_firmato.pdf",content:b64(reportBytes)},{filename:ddt.signed_name||"DDT_Firmato.pdf",content:b64(ddtBytes)}];
-    const rr=await fetch("https://api.resend.com/emails",{method:"POST",headers:{Authorization:`Bearer ${RESEND_API_KEY}`,"Content-Type":"application/json","Idempotency-Key":`pose-package-${poseId}-${reportId}`},body:JSON.stringify({from:FROM_EMAIL,to:[pose.client_email],subject:`Planet Windows · Posa ${pose.job_number}`,html:`<p>Gentile ${pose.client_name},</p><p>in allegato trova la documentazione firmata relativa alla posa <strong>${pose.job_number}</strong>: rapportino di posa e DDT firmato.</p><p>Grazie,<br>Planet Windows</p>`,attachments})});
+    const packageVersion=`${compactKey(report.pdf_generated_at||report.updated_at)}-${compactKey(ddt.signed_at||ddt.updated_at)}`;
+    const idempotencyKey=`pose-package-${poseId}-${reportId}-${packageVersion}`.slice(0,250);
+    const rr=await fetch("https://api.resend.com/emails",{method:"POST",headers:{Authorization:`Bearer ${RESEND_API_KEY}`,"Content-Type":"application/json","Idempotency-Key":idempotencyKey},body:JSON.stringify({from:FROM_EMAIL,to:[pose.client_email],subject:`Planet Windows · Posa ${pose.job_number}`,html:`<p>Gentile ${pose.client_name},</p><p>in allegato trova la documentazione firmata relativa alla posa <strong>${pose.job_number}</strong>: rapportino di posa e DDT firmato.</p><p>Grazie,<br>Planet Windows</p>`,attachments})});
     if(!rr.ok)throw new Error(`Servizio email: ${rr.status} ${await rr.text()}`);
     const resendPayload=await rr.json().catch(()=>null);
     const {error:du}=await admin.from("ddt_documents").update({email_status:"sent",email_last_error:null}).eq("id",ddt.id);
