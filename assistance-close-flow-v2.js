@@ -1,0 +1,108 @@
+(()=>{
+  const cfg=window.PW_POSA_CONFIG||{};
+  if(!window.supabase||!cfg.SUPABASE_URL||!cfg.SUPABASE_ANON_KEY)return;
+  const sb=window.supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY);
+  const $=id=>document.getElementById(id);
+  const esc=v=>String(v??'').replace(/[&<>"']/g,s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot',"'":'&#039;'}[s]));
+  const toast=m=>{const e=$('toast');if(!e)return alert(m);e.textContent=m;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),3800)};
+  let profile=null,currentId=null,busy=false,rootObserver=null;
+  const draftKey=id=>`pw-ass-close-draft:${id}`;
+  const readDraft=id=>{try{return JSON.parse(sessionStorage.getItem(draftKey(id))||'{}')}catch{return{}}};
+  const saveDraft=(id,d)=>{try{sessionStorage.setItem(draftKey(id),JSON.stringify(d))}catch{}};
+  const clearDraft=id=>{try{sessionStorage.removeItem(draftKey(id))}catch{}};
+
+  async function loadProfile(){
+    const {data:{session}}=await sb.auth.getSession();if(!session)return null;
+    const {data}=await sb.from('profiles').select('role').eq('id',session.user.id).maybeSingle();profile=data||null;return profile;
+  }
+
+  function hideLegacy(root){
+    root.querySelectorAll('[data-auto-assistance-report],[data-ddt-card]').forEach(el=>{if(!el.closest('[data-assistance-close-flow]'))el.style.display='none'});
+  }
+
+  function bindCanvas(canvas,clearBtn){
+    if(!canvas)return;
+    const ctx=canvas.getContext('2d');ctx.lineWidth=3;ctx.lineCap='round';ctx.lineJoin='round';ctx.strokeStyle='#111';canvas.dataset.signed='0';let drawing=false,last=null;
+    const pt=e=>{const r=canvas.getBoundingClientRect();return{x:(e.clientX-r.left)*canvas.width/r.width,y:(e.clientY-r.top)*canvas.height/r.height}};
+    const down=e=>{drawing=true;canvas.dataset.signed='1';last=pt(e);try{canvas.setPointerCapture?.(e.pointerId)}catch{}e.preventDefault()};
+    const move=e=>{if(!drawing)return;const p=pt(e);ctx.beginPath();ctx.moveTo(last.x,last.y);ctx.lineTo(p.x,p.y);ctx.stroke();last=p;e.preventDefault()};
+    const up=e=>{drawing=false;last=null;try{canvas.releasePointerCapture?.(e.pointerId)}catch{}};
+    canvas.addEventListener('pointerdown',down,{passive:false});canvas.addEventListener('pointermove',move,{passive:false});canvas.addEventListener('pointerup',up);canvas.addEventListener('pointercancel',up);
+    clearBtn?.addEventListener('click',()=>{ctx.clearRect(0,0,canvas.width,canvas.height);canvas.dataset.signed='0'});
+  }
+
+  function collect(id){
+    const d={intervention:$('closeAssIntervention')?.value||'',resolved:document.querySelector('input[name="closeAssResolved"]:checked')?.value||'',notes:$('closeAssNotes')?.value||'',signer:$('closeAssSigner')?.value||''};
+    saveDraft(id,d);return d;
+  }
+
+  async function render(){
+    const dlg=$('assistanceDetailDialog'),root=$('assDetailContent');if(!dlg?.open||!root||profile?.role!=='installer'||!currentId)return;
+    hideLegacy(root);
+    if(root.querySelector('[data-assistance-close-flow]'))return;
+    const [{data:a,error:ae},{data:ddt,error:de}]=await Promise.all([
+      sb.from('assistances').select('*').eq('id',currentId).single(),
+      sb.from('ddt_documents').select('*').eq('assistance_id',currentId).maybeSingle()
+    ]);
+    if(ae||!a)return;if(de)console.warn(de);
+    const draft=readDraft(a.id),resolved=draft.resolved||'';
+    const reportDone=!!a.final_report_path,ddtNeeded=!!ddt,ddtDone=!ddtNeeded||!!ddt.signed_path,emailSent=a.email_status==='sent'&&(!ddtNeeded||ddt?.email_status==='sent');
+    const panel=document.createElement('section');panel.dataset.assistanceCloseFlow='1';panel.className='ass-detail-section';panel.innerHTML=`
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:14px">
+        <div><div class="eyebrow">CHIUSURA ASSISTENZA</div><h4 style="margin:0">Completa tutto in una sola schermata</h4><p class="muted" style="margin:6px 0 0">Un solo invio finale al cliente con ${ddtNeeded?'rapportino + DDT firmato':'rapportino firmato'}.</p></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><span class="badge ${reportDone?'green':'orange'}">Rapportino ${reportDone?'pronto':'da completare'}</span><span class="badge ${ddtDone?'green':'orange'}">DDT ${ddtNeeded?(ddtDone?'firmato':'da firmare'):'non previsto'}</span></div>
+      </div>
+      ${emailSent?'<div class="completion-ok"><strong>Documentazione già inviata al cliente.</strong></div>':reportDone?'<div class="completion-ok"><strong>Rapportino già salvato.</strong><p class="muted">Puoi completare il DDT se necessario e usare il pulsante finale qui sotto.</p></div>':`
+      <label>Problematica riscontrata dall’Ufficio<textarea id="closeAssIssue" rows="4" readonly aria-readonly="true" style="background:#f3f1ed;color:#5f5957;cursor:not-allowed">${esc(a.issue_description||'')}</textarea></label>
+      <label>Come si è intervenuti *<textarea id="closeAssIntervention" rows="5">${esc(draft.intervention||a.intervention||'')}</textarea></label>
+      <div><strong>Il problema è stato risolto? *</strong><div style="display:flex;gap:22px;margin:9px 0 14px"><label style="display:flex;gap:7px;align-items:center"><input type="radio" name="closeAssResolved" value="true" ${resolved==='true'?'checked':''} style="width:auto"> Sì</label><label style="display:flex;gap:7px;align-items:center"><input type="radio" name="closeAssResolved" value="false" ${resolved==='false'?'checked':''} style="width:auto"> No</label></div></div>
+      <label id="closeAssNotesWrap" style="display:${resolved==='false'?'':'none'}">Note / cosa rimane da segnalare *<textarea id="closeAssNotes" rows="4">${esc(draft.notes||a.final_notes||'')}</textarea></label>
+      `}
+      ${(!emailSent&&(!reportDone||!ddtDone))?`<div style="height:1px;background:var(--line);margin:20px 0"></div><h4>Firme</h4><p class="muted">Queste firme vengono usate per il rapportino e, se presente, anche per il DDT.</p>
+      <label>Posatore<input value="Angelo Idone" readonly style="background:#f3f1ed"></label>
+      <div class="signature-wrap"><canvas id="closeAssInstallerCanvas" width="900" height="300" style="touch-action:none;width:100%;background:#fff"></canvas></div><div class="signature-actions"><button type="button" class="btn ghost" id="closeAssInstallerClear">Cancella e rifai</button></div>
+      <label style="margin-top:16px">Nome e cognome cliente *<input id="closeAssSigner" value="${esc(draft.signer||'')}" autocomplete="name" autocapitalize="words" spellcheck="false"></label>
+      <div class="signature-wrap"><canvas id="closeAssClientCanvas" width="900" height="300" style="touch-action:none;width:100%;background:#fff"></canvas></div><div class="signature-actions"><button type="button" class="btn ghost" id="closeAssClientClear">Cancella e rifai</button></div>`:''}
+      ${!emailSent?`<div style="margin-top:22px;padding:16px;border:1px solid var(--line);border-radius:14px;background:#fbfaf8"><strong>Invio finale</strong><p class="muted" style="margin:6px 0 12px">Alla cliente arriverà una sola email con ${ddtNeeded?'2 PDF: Rapportino Assistenza firmato + DDT firmato':'il Rapportino Assistenza firmato'}.</p><button type="button" class="btn primary" id="closeAssFinalBtn" style="width:100%">Conferma e invia tutto al cliente</button></div>`:''}
+    `;
+    root.appendChild(panel);hideLegacy(root);
+
+    if(!reportDone){
+      document.querySelectorAll('input[name="closeAssResolved"]').forEach(r=>r.addEventListener('change',()=>{const w=$('closeAssNotesWrap');if(w)w.style.display=r.value==='false'?'':'none';if(r.value==='true'&&$('closeAssNotes'))$('closeAssNotes').value='';collect(a.id)}));
+      ['closeAssIntervention','closeAssNotes','closeAssSigner'].forEach(x=>$(x)?.addEventListener('input',()=>collect(a.id),{passive:true}));
+    }
+    bindCanvas($('closeAssInstallerCanvas'),$('closeAssInstallerClear'));bindCanvas($('closeAssClientCanvas'),$('closeAssClientClear'));
+    $('closeAssFinalBtn')?.addEventListener('click',()=>finalize(a,ddt));
+  }
+
+  async function finalize(a,ddt){
+    if(busy)return;
+    const reportDone=!!a.final_report_path,ddtDone=!ddt||!!ddt.signed_path;
+    const signer=($('closeAssSigner')?.value||a.signer_name||'').trim(),ic=$('closeAssInstallerCanvas'),cc=$('closeAssClientCanvas');
+    let intervention=a.intervention||'',resolved=a.problem_resolved,notes=a.final_notes||'';
+    if(!reportDone){
+      const d=collect(a.id);intervention=d.intervention.trim();resolved=d.resolved==='true';notes=d.notes.trim();
+      if(!intervention)return toast('Descrivi come si è intervenuti.');if(!d.resolved)return toast('Indica se il problema è stato risolto.');if(d.resolved==='false'&&!notes)return toast('Inserisci le note su cosa rimane da segnalare.');
+    }
+    if((!reportDone||!ddtDone)&&(!ic||ic.dataset.signed!=='1'))return toast('Firma del posatore obbligatoria.');
+    if((!reportDone||!ddtDone)&&(!cc||cc.dataset.signed!=='1'))return toast('Firma del cliente obbligatoria.');
+    if((!reportDone||!ddtDone)&&!signer)return toast('Inserisci nome e cognome del cliente.');
+    const btn=$('closeAssFinalBtn'),old=btn.textContent;busy=true;btn.disabled=true;
+    try{
+      const installerSig=ic?.toDataURL('image/png'),clientSig=cc?.toDataURL('image/png');
+      if(ddt&&!ddt.signed_path){btn.textContent='Salvataggio DDT firmato…';const {data,error}=await sb.functions.invoke('finalize-ddt',{body:{ddt_id:ddt.id,installer_signature_data_url:installerSig,client_signature_data_url:clientSig}});if(error)throw error;if(!data?.ok)throw new Error(data?.error||'Impossibile salvare il DDT firmato.');}
+      if(!a.final_report_path){btn.textContent='Creazione rapportino assistenza…';const {data,error}=await sb.functions.invoke('finalize-assistance-v2',{body:{assistance_id:a.id,intervention,problem_resolved:!!resolved,final_notes:resolved?null:notes,installer_signer_name:'Angelo Idone',installer_signature_data_url:installerSig,signer_name:signer,signature_data_url:clientSig}});if(error)throw error;if(!data?.ok)throw new Error(data?.error||'Impossibile generare il rapportino assistenza.');}
+      btn.textContent='Invio documenti al cliente…';const {data,error}=await sb.functions.invoke('send-assistance-package',{body:{assistance_id:a.id}});if(error)throw error;if(!data?.ok)throw new Error(data?.error||'Impossibile inviare la documentazione.');
+      clearDraft(a.id);toast(data.attachments===2?'Inviati al cliente Rapportino Assistenza + DDT in un’unica email.':'Rapportino Assistenza inviato al cliente.');
+      setTimeout(()=>location.reload(),900);
+    }catch(e){console.error(e);toast(e?.message||String(e));btn.disabled=false;btn.textContent=old;busy=false;}
+  }
+
+  document.addEventListener('click',e=>{const card=e.target.closest('[data-assistance]');if(card?.dataset.assistance)currentId=card.dataset.assistance;},true);
+  window.addEventListener('load',async()=>{
+    await loadProfile();
+    const dlg=$('assistanceDetailDialog'),root=$('assDetailContent');
+    if(dlg)new MutationObserver(()=>{if(dlg.open)setTimeout(()=>render().catch(console.warn),120)}).observe(dlg,{attributes:true,attributeFilter:['open']});
+    if(root){rootObserver=new MutationObserver(()=>{if(dlg?.open){hideLegacy(root);setTimeout(()=>render().catch(console.warn),40)}});rootObserver.observe(root,{childList:true,subtree:false});}
+  });
+})();
