@@ -19,7 +19,12 @@
       else{payload.created_by=session.user.id;const r=await sb.from('poses').insert(payload).select('id').single();if(r.error)throw r.error;poseId=r.data.id;created=true}
       await syncPoseDates(poseId,list);
       await window.PW_DDT.saveForPose(poseId);
-      $('poseDialog').close();toast(existingId?'Posa aggiornata':'Posa salvata');setTimeout(()=>location.reload(),600);
+      $('poseDialog')?.close();
+      $('detailDialog')?.close();
+      toast(existingId?'Posa aggiornata':'Posa salvata');
+      try{localStorage.setItem('pw-posa-current-view','calendar')}catch(_){ }
+      const calendarBtn=document.querySelector('#officeNav:not(.hidden) .nav-item[data-view="calendar"],#installerNav:not(.hidden) .nav-item[data-view="calendar"]');
+      if(calendarBtn)calendarBtn.click();
     }catch(err){console.error(err);if(created&&poseId)await sb.from('poses').delete().eq('id',poseId);toast('Salvataggio posa: '+(err.message||String(err)))}
   },true);
 })();
