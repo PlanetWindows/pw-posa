@@ -27,20 +27,20 @@ Deno.serve(async req=>{
     const pose=poses?.[0]||null,report=reports?.[0]||null,link=links?.[0]||null;
     if(pe||!pose||re||!report||le||!link)return json({error:"Posa o rapportino non accessibili"},403);
     const ddt=ddts?.[0]||null;if(de)throw de;if(!ddt)return json({error:"DDT non presente"},409);ddtId=ddt.id;
-    if(ddt.email_status==="sent")return json({ok:true,already_sent:true,attachments:2});
-    if(!report.pdf_storage_path)return json({error:"Rapportino firmato non disponibile"},409);
+    if(ddt.email_status==="sent")return json({ok:true,already_sent:true,attachments:1});
+    if(!report.pdf_storage_path)return json({error:"Rapportino firmato non disponibile in archivio"},409);
     if(!ddt.signed_path)return json({error:"DDT firmato non disponibile"},409);
     if(!safe(pose.client_email))return json({error:"Email cliente mancante"},409);
     if(!RESEND_API_KEY)throw new Error("RESEND_API_KEY non configurata");
-    const [reportBytes,ddtBytes]=await Promise.all([read("pw-posa-documents",report.pdf_storage_path),read("pw-ddt-private",ddt.signed_path)]);
-    const attachments=[{filename:report.pdf_file_name||"Rapportino_Posa_firmato.pdf",content:b64(reportBytes)},{filename:ddt.signed_name||"DDT_Firmato.pdf",content:b64(ddtBytes)}];
+    const ddtBytes=await read("pw-ddt-private",ddt.signed_path);
+    const attachments=[{filename:ddt.signed_name||"DDT_Firmato.pdf",content:b64(ddtBytes)}];
     const packageVersion=`${compactKey(report.pdf_generated_at||report.updated_at)}-${compactKey(ddt.signed_at||ddt.updated_at)}`;
-    const idempotencyKey=`pose-package-${poseId}-${reportId}-${packageVersion}`.slice(0,250);
-    const rr=await fetch("https://api.resend.com/emails",{method:"POST",headers:{Authorization:`Bearer ${RESEND_API_KEY}`,"Content-Type":"application/json","Idempotency-Key":idempotencyKey},body:JSON.stringify({from:FROM_EMAIL,to:[pose.client_email],subject:`Planet Windows · Posa ${pose.job_number}`,html:`<p>Gentile ${pose.client_name},</p><p>in allegato trova la documentazione firmata relativa alla posa <strong>${pose.job_number}</strong>: rapportino di posa e DDT firmato.</p><p>Grazie,<br>Planet Windows</p>`,attachments})});
+    const idempotencyKey=`pose-package-ddt-only-${poseId}-${reportId}-${packageVersion}`.slice(0,250);
+    const rr=await fetch("https://api.resend.com/emails",{method:"POST",headers:{Authorization:`Bearer ${RESEND_API_KEY}`,"Content-Type":"application/json","Idempotency-Key":idempotencyKey},body:JSON.stringify({from:FROM_EMAIL,to:[pose.client_email],subject:`Planet Windows · Posa ${pose.job_number}`,html:`<p>Gentile ${pose.client_name},</p><p>in allegato trova il DDT firmato relativo alla posa <strong>${pose.job_number}</strong>.</p><p>Grazie,<br>Planet Windows</p>`,attachments})});
     if(!rr.ok)throw new Error(`Servizio email: ${rr.status} ${await rr.text()}`);
     const resendPayload=await rr.json().catch(()=>null);
     const {error:du}=await admin.from("ddt_documents").update({email_status:"sent",email_last_error:null}).eq("id",ddt.id);
-    if(du){console.error("Mail inviata ma stato DDT non aggiornato",du);return json({ok:true,already_sent:false,attachments:2,email_id:resendPayload?.id||null,state_warning:errText(du)});}
-    return json({ok:true,already_sent:false,attachments:2,email_id:resendPayload?.id||null});
+    if(du){console.error("Mail inviata ma stato DDT non aggiornato",du);return json({ok:true,already_sent:false,attachments:1,email_id:resendPayload?.id||null,state_warning:errText(du)});}
+    return json({ok:true,already_sent:false,attachments:1,email_id:resendPayload?.id||null});
   }catch(e){const message=errText(e);console.error(e);if(ddtId)await admin.from("ddt_documents").update({email_last_error:message}).eq("id",ddtId);return json({ok:false,error:message},500)}
 });
