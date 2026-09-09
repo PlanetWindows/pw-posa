@@ -162,3 +162,13 @@
     if (dialog?.open && currentAssistanceId) injectUploader(currentAssistanceId);
   }).observe(document.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['open'] });
 })();
+
+(() => {
+  const isIOS = /iPad|iPhone|iPod/i.test(navigator.userAgent) ||
+    (/Macintosh/i.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+  if (!isIOS || document.querySelector('script[data-ios-assistance-send-fix]')) return;
+  const script = document.createElement('script');
+  script.src = 'ios-assistance-send-fix.js?v=20260909-iosmail1';
+  script.dataset.iosAssistanceSendFix = '1';
+  document.head.appendChild(script);
+})();
