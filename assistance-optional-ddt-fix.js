@@ -26,130 +26,41 @@
     return !!panel && !panel.querySelector('#assV4DdtInstaller');
   }
 
+  function setText(el,text){
+    if(el && el.textContent!==text)el.textContent=text;
+  }
+
   function syncPanel(){
     const panel=document.querySelector('[data-assistance-close-flow-v4]');
-    if(!panel||!noDdt(panel))return;
+    if(!panel||!noDdt(panel))return false;
 
     const mainTitle=[...panel.querySelectorAll('h4')].find(x=>(x.textContent||'').trim()==='Rapportino + DDT');
-    if(mainTitle)mainTitle.textContent='Rapportino di fine assistenza';
+    setText(mainTitle,'Rapportino di fine assistenza');
 
     const intro=panel.querySelector('.eyebrow')?.nextElementSibling?.nextElementSibling;
-    if(intro?.classList.contains('muted'))intro.textContent='Compila e firma il rapportino. Il DDT è facoltativo e non blocca la chiusura dell’assistenza.';
+    if(intro?.classList.contains('muted'))setText(intro,'Compila e firma il rapportino. Il DDT è facoltativo e non blocca la chiusura dell’assistenza.');
 
     const ddtTitle=[...panel.querySelectorAll('h4')].find(x=>(x.textContent||'').trim()==='Firme DDT');
-    if(ddtTitle)ddtTitle.textContent='DDT (facoltativo)';
+    setText(ddtTitle,'DDT (facoltativo)');
 
     const ddtMissing=[...panel.querySelectorAll('.form-error')].find(x=>(x.textContent||'').includes('DDT non presente'));
     if(ddtMissing){
       ddtMissing.classList.remove('form-error');
       ddtMissing.classList.add('muted');
-      ddtMissing.textContent='Nessun DDT associato: verrà inviato al cliente solo il rapportino firmato.';
+      setText(ddtMissing,'Nessun DDT associato: verrà inviato al cliente solo il rapportino firmato.');
     }
 
     const btn=panel.querySelector('#assV4Send');
     if(btn){
       btn.disabled=false;
-      btn.textContent='INVIA RAPPORTINO';
+      setText(btn,'INVIA RAPPORTINO');
       btn.dataset.optionalDdtReady='1';
     }
-  }
-
-  const isIOS=/iPad|iPhone|iPod/i.test(navigator.userAgent)||(/Macintosh/i.test(navigator.userAgent)&&navigator.maxTouchPoints>1);
-  const signatureCanvasIds=['assV4ReportInstaller','assV4ReportClient','assV4DdtInstaller','assV4DdtClient','ddtInstallerSign','ddtClientSign'];
-
-  function bindIOSSignatureCanvas(c){
-    if(!isIOS||!c||c.dataset.iosSignatureFix==='2')return;
-    c.dataset.iosSignatureFix='2';
-    c.style.touchAction='none';
-    c.style.webkitUserSelect='none';
-    c.style.userSelect='none';
-
-    const ctx=c.getContext('2d');
-    if(!ctx)return;
-    ctx.lineWidth=3;
-    ctx.lineCap='round';
-    ctx.lineJoin='round';
-    ctx.strokeStyle='#111';
-
-    let drawing=false;
-    let last=null;
-
-    const point=(clientX,clientY)=>{
-      const r=c.getBoundingClientRect();
-      return {
-        x:(clientX-r.left)*c.width/Math.max(r.width,1),
-        y:(clientY-r.top)*c.height/Math.max(r.height,1)
-      };
-    };
-
-    const begin=(clientX,clientY)=>{
-      drawing=true;
-      last=point(clientX,clientY);
-    };
-
-    const move=(clientX,clientY)=>{
-      if(!drawing||!last)return;
-      const p=point(clientX,clientY);
-      ctx.beginPath();
-      ctx.moveTo(last.x,last.y);
-      ctx.lineTo(p.x,p.y);
-      ctx.stroke();
-      last=p;
-      c.dataset.signed='1';
-    };
-
-    const end=()=>{
-      drawing=false;
-      last=null;
-    };
-
-    // On iPhone/iPad use native touch events directly. Safari exposes PointerEvent,
-    // but pointer handling inside <dialog> can intermittently miss the gesture.
-    c.addEventListener('touchstart',e=>{
-      const t=e.touches?.[0];
-      if(!t)return;
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      begin(t.clientX,t.clientY);
-    },{capture:true,passive:false});
-
-    c.addEventListener('touchmove',e=>{
-      const t=e.touches?.[0];
-      if(!t||!drawing)return;
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      move(t.clientX,t.clientY);
-    },{capture:true,passive:false});
-
-    c.addEventListener('touchend',e=>{
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      end();
-    },{capture:true,passive:false});
-
-    c.addEventListener('touchcancel',e=>{
-      e.preventDefault();
-      e.stopImmediatePropagation();
-      end();
-    },{capture:true,passive:false});
-  }
-
-  function repairIOSSignatures(){
-    if(!isIOS)return;
-    signatureCanvasIds.forEach(id=>bindIOSSignatureCanvas($(id)));
-  }
-
-  function closeAssistanceDialog(event){
-    const target=event?.target?.closest?.('#assClose');
-    if(!target)return false;
-    if(event){
-      event.preventDefault();
-      event.stopPropagation();
-      event.stopImmediatePropagation?.();
-    }
-    const dlg=$('assistanceDetailDialog');
-    if(dlg?.open)dlg.close();
     return true;
+  }
+
+  function scheduleSync(){
+    [80,250,500,900,1500].forEach(ms=>setTimeout(syncPanel,ms));
   }
 
   async function sendReportOnly(){
@@ -210,18 +121,13 @@
     }
   }
 
-  // Extra close fallback for iOS: handle both click and touchend at document level.
   document.addEventListener('click',e=>{
-    if(closeAssistanceDialog(e))return;
     const card=e.target.closest('[data-assistance]');
-    if(card?.dataset.assistance)currentId=card.dataset.assistance;
-    setTimeout(repairIOSSignatures,80);
-    setTimeout(repairIOSSignatures,300);
+    if(card?.dataset.assistance){
+      currentId=card.dataset.assistance;
+      scheduleSync();
+    }
   },true);
-
-  document.addEventListener('touchend',e=>{
-    if(isIOS)closeAssistanceDialog(e);
-  },{capture:true,passive:false});
 
   document.addEventListener('click',e=>{
     const btn=e.target.closest('#assV4Send');
@@ -233,14 +139,7 @@
     sendReportOnly();
   },true);
 
-  new MutationObserver(()=>{
-    syncPanel();
-    repairIOSSignatures();
-  }).observe(document.body,{subtree:true,childList:true});
-
   window.addEventListener('load',()=>{
-    setTimeout(syncPanel,1000);
-    setTimeout(repairIOSSignatures,300);
-    setTimeout(repairIOSSignatures,1200);
+    [400,900,1600,2500].forEach(ms=>setTimeout(syncPanel,ms));
   });
 })();
