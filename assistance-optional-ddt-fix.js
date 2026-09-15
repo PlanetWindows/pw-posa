@@ -54,6 +54,118 @@
     }
   }
 
+  const isIOS=/iPad|iPhone|iPod/i.test(navigator.userAgent)||(/Macintosh/i.test(navigator.userAgent)&&navigator.maxTouchPoints>1);
+  const signatureCanvasIds=['assV4ReportInstaller','assV4ReportClient','assV4DdtInstaller','assV4DdtClient','ddtInstallerSign','ddtClientSign'];
+
+  function bindIOSSignatureCanvas(c){
+    if(!isIOS||!c||c.dataset.iosSignatureFix==='1')return;
+    c.dataset.iosSignatureFix='1';
+    c.style.touchAction='none';
+    c.style.webkitUserSelect='none';
+    c.style.userSelect='none';
+
+    const ctx=c.getContext('2d');
+    if(!ctx)return;
+    ctx.lineWidth=3;
+    ctx.lineCap='round';
+    ctx.lineJoin='round';
+    ctx.strokeStyle='#111';
+
+    let drawing=false;
+    let last=null;
+    let activePointer=null;
+
+    const point=(clientX,clientY)=>{
+      const r=c.getBoundingClientRect();
+      return {
+        x:(clientX-r.left)*c.width/Math.max(r.width,1),
+        y:(clientY-r.top)*c.height/Math.max(r.height,1)
+      };
+    };
+
+    const begin=(clientX,clientY,pointerId=null)=>{
+      drawing=true;
+      activePointer=pointerId;
+      last=point(clientX,clientY);
+      if(pointerId!==null&&c.setPointerCapture){
+        try{c.setPointerCapture(pointerId)}catch(_){ }
+      }
+    };
+
+    const move=(clientX,clientY)=>{
+      if(!drawing||!last)return;
+      const p=point(clientX,clientY);
+      ctx.beginPath();
+      ctx.moveTo(last.x,last.y);
+      ctx.lineTo(p.x,p.y);
+      ctx.stroke();
+      last=p;
+      c.dataset.signed='1';
+    };
+
+    const end=()=>{
+      drawing=false;
+      last=null;
+      activePointer=null;
+    };
+
+    if(window.PointerEvent){
+      c.addEventListener('pointerdown',e=>{
+        if(e.pointerType==='mouse'&&e.button!==0)return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        begin(e.clientX,e.clientY,e.pointerId);
+      },{capture:true,passive:false});
+      c.addEventListener('pointermove',e=>{
+        if(!drawing||(activePointer!==null&&e.pointerId!==activePointer))return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        move(e.clientX,e.clientY);
+      },{capture:true,passive:false});
+      c.addEventListener('pointerup',e=>{
+        if(activePointer!==null&&e.pointerId!==activePointer)return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        end();
+      },{capture:true,passive:false});
+      c.addEventListener('pointercancel',e=>{
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        end();
+      },{capture:true,passive:false});
+    }else{
+      c.addEventListener('touchstart',e=>{
+        const t=e.touches?.[0];
+        if(!t)return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        begin(t.clientX,t.clientY);
+      },{capture:true,passive:false});
+      c.addEventListener('touchmove',e=>{
+        const t=e.touches?.[0];
+        if(!t||!drawing)return;
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        move(t.clientX,t.clientY);
+      },{capture:true,passive:false});
+      c.addEventListener('touchend',e=>{
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        end();
+      },{capture:true,passive:false});
+      c.addEventListener('touchcancel',e=>{
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        end();
+      },{capture:true,passive:false});
+    }
+  }
+
+  function repairIOSSignatures(){
+    if(!isIOS)return;
+    signatureCanvasIds.forEach(id=>bindIOSSignatureCanvas($(id)));
+  }
+
   async function sendReportOnly(){
     if(busy)return;
     const btn=$('assV4Send');
@@ -115,6 +227,8 @@
   document.addEventListener('click',e=>{
     const card=e.target.closest('[data-assistance]');
     if(card?.dataset.assistance)currentId=card.dataset.assistance;
+    setTimeout(repairIOSSignatures,80);
+    setTimeout(repairIOSSignatures,300);
   },true);
 
   document.addEventListener('click',e=>{
@@ -127,6 +241,14 @@
     sendReportOnly();
   },true);
 
-  new MutationObserver(()=>syncPanel()).observe(document.body,{subtree:true,childList:true});
-  window.addEventListener('load',()=>setTimeout(syncPanel,1000));
+  new MutationObserver(()=>{
+    syncPanel();
+    repairIOSSignatures();
+  }).observe(document.body,{subtree:true,childList:true});
+
+  window.addEventListener('load',()=>{
+    setTimeout(syncPanel,1000);
+    setTimeout(repairIOSSignatures,300);
+    setTimeout(repairIOSSignatures,1200);
+  });
 })();
