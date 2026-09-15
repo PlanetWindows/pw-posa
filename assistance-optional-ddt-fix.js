@@ -58,8 +58,8 @@
   const signatureCanvasIds=['assV4ReportInstaller','assV4ReportClient','assV4DdtInstaller','assV4DdtClient','ddtInstallerSign','ddtClientSign'];
 
   function bindIOSSignatureCanvas(c){
-    if(!isIOS||!c||c.dataset.iosSignatureFix==='1')return;
-    c.dataset.iosSignatureFix='1';
+    if(!isIOS||!c||c.dataset.iosSignatureFix==='2')return;
+    c.dataset.iosSignatureFix='2';
     c.style.touchAction='none';
     c.style.webkitUserSelect='none';
     c.style.userSelect='none';
@@ -73,7 +73,6 @@
 
     let drawing=false;
     let last=null;
-    let activePointer=null;
 
     const point=(clientX,clientY)=>{
       const r=c.getBoundingClientRect();
@@ -83,13 +82,9 @@
       };
     };
 
-    const begin=(clientX,clientY,pointerId=null)=>{
+    const begin=(clientX,clientY)=>{
       drawing=true;
-      activePointer=pointerId;
       last=point(clientX,clientY);
-      if(pointerId!==null&&c.setPointerCapture){
-        try{c.setPointerCapture(pointerId)}catch(_){ }
-      }
     };
 
     const move=(clientX,clientY)=>{
@@ -106,64 +101,55 @@
     const end=()=>{
       drawing=false;
       last=null;
-      activePointer=null;
     };
 
-    if(window.PointerEvent){
-      c.addEventListener('pointerdown',e=>{
-        if(e.pointerType==='mouse'&&e.button!==0)return;
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        begin(e.clientX,e.clientY,e.pointerId);
-      },{capture:true,passive:false});
-      c.addEventListener('pointermove',e=>{
-        if(!drawing||(activePointer!==null&&e.pointerId!==activePointer))return;
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        move(e.clientX,e.clientY);
-      },{capture:true,passive:false});
-      c.addEventListener('pointerup',e=>{
-        if(activePointer!==null&&e.pointerId!==activePointer)return;
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        end();
-      },{capture:true,passive:false});
-      c.addEventListener('pointercancel',e=>{
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        end();
-      },{capture:true,passive:false});
-    }else{
-      c.addEventListener('touchstart',e=>{
-        const t=e.touches?.[0];
-        if(!t)return;
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        begin(t.clientX,t.clientY);
-      },{capture:true,passive:false});
-      c.addEventListener('touchmove',e=>{
-        const t=e.touches?.[0];
-        if(!t||!drawing)return;
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        move(t.clientX,t.clientY);
-      },{capture:true,passive:false});
-      c.addEventListener('touchend',e=>{
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        end();
-      },{capture:true,passive:false});
-      c.addEventListener('touchcancel',e=>{
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        end();
-      },{capture:true,passive:false});
-    }
+    // On iPhone/iPad use native touch events directly. Safari exposes PointerEvent,
+    // but pointer handling inside <dialog> can intermittently miss the gesture.
+    c.addEventListener('touchstart',e=>{
+      const t=e.touches?.[0];
+      if(!t)return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      begin(t.clientX,t.clientY);
+    },{capture:true,passive:false});
+
+    c.addEventListener('touchmove',e=>{
+      const t=e.touches?.[0];
+      if(!t||!drawing)return;
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      move(t.clientX,t.clientY);
+    },{capture:true,passive:false});
+
+    c.addEventListener('touchend',e=>{
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      end();
+    },{capture:true,passive:false});
+
+    c.addEventListener('touchcancel',e=>{
+      e.preventDefault();
+      e.stopImmediatePropagation();
+      end();
+    },{capture:true,passive:false});
   }
 
   function repairIOSSignatures(){
     if(!isIOS)return;
     signatureCanvasIds.forEach(id=>bindIOSSignatureCanvas($(id)));
+  }
+
+  function closeAssistanceDialog(event){
+    const target=event?.target?.closest?.('#assClose');
+    if(!target)return false;
+    if(event){
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation?.();
+    }
+    const dlg=$('assistanceDetailDialog');
+    if(dlg?.open)dlg.close();
+    return true;
   }
 
   async function sendReportOnly(){
@@ -224,12 +210,18 @@
     }
   }
 
+  // Extra close fallback for iOS: handle both click and touchend at document level.
   document.addEventListener('click',e=>{
+    if(closeAssistanceDialog(e))return;
     const card=e.target.closest('[data-assistance]');
     if(card?.dataset.assistance)currentId=card.dataset.assistance;
     setTimeout(repairIOSSignatures,80);
     setTimeout(repairIOSSignatures,300);
   },true);
+
+  document.addEventListener('touchend',e=>{
+    if(isIOS)closeAssistanceDialog(e);
+  },{capture:true,passive:false});
 
   document.addEventListener('click',e=>{
     const btn=e.target.closest('#assV4Send');
