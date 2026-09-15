@@ -79,3 +79,47 @@
   }
   window.addEventListener('load',()=>setTimeout(restoreOpenContext,450));
 })();
+
+// iPhone/iPad refresh control. Isolated UI only: it does not change app workflows.
+(()=>{
+  const isIOS=/iPad|iPhone|iPod/i.test(navigator.userAgent)||(/Macintosh/i.test(navigator.userAgent)&&navigator.maxTouchPoints>1);
+  if(!isIOS||document.getElementById('iosRefreshBtn'))return;
+
+  const actions=document.querySelector('.topbar-actions');
+  if(!actions)return;
+
+  const style=document.createElement('style');
+  style.textContent=`
+    #iosRefreshBtn{
+      width:40px;height:40px;min-width:40px;padding:0;
+      display:inline-flex;align-items:center;justify-content:center;
+      border:1px solid var(--line,#e8e2da);border-radius:50%;
+      background:#fff;color:var(--black,#211d1e);
+      font-size:25px;font-weight:600;line-height:1;
+      -webkit-tap-highlight-color:transparent;
+      touch-action:manipulation;
+    }
+    #iosRefreshBtn:active{background:var(--gold-soft,#f5ead3)}
+    #iosRefreshBtn.is-refreshing{animation:pwIosRefreshSpin .55s linear infinite}
+    @keyframes pwIosRefreshSpin{to{transform:rotate(360deg)}}
+  `;
+  document.head.appendChild(style);
+
+  const btn=document.createElement('button');
+  btn.type='button';
+  btn.id='iosRefreshBtn';
+  btn.setAttribute('aria-label','Aggiorna PW Posa');
+  btn.title='Aggiorna';
+  btn.textContent='↻';
+
+  const logout=document.getElementById('topLogoutBtn');
+  actions.insertBefore(btn,logout||actions.firstChild);
+
+  btn.addEventListener('click',e=>{
+    e.preventDefault();
+    if(btn.disabled)return;
+    btn.disabled=true;
+    btn.classList.add('is-refreshing');
+    setTimeout(()=>window.location.reload(),120);
+  });
+})();
