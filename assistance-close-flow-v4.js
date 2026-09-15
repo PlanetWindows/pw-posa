@@ -1,15 +1,40 @@
 (()=>{
 const cfg=window.PW_POSA_CONFIG||{};if(!window.supabase||!cfg.SUPABASE_URL||!cfg.SUPABASE_ANON_KEY)return;const sb=window.supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY),$=id=>document.getElementById(id),esc=v=>String(v??'').replace(/[&<>"']/g,s=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[s]));let role=null,currentId=null,busy=false;
 const toast=m=>{const e=$('toast');if(!e)return alert(m);e.textContent=m;e.classList.add('show');setTimeout(()=>e.classList.remove('show'),4200)};
+const isIOS=/iPad|iPhone|iPod/i.test(navigator.userAgent)||(/Macintosh/i.test(navigator.userAgent)&&navigator.maxTouchPoints>1);
 async function profile(){if(role)return role;const {data:{session}}=await sb.auth.getSession();if(!session)return null;const {data}=await sb.from('profiles').select('role').eq('id',session.user.id).maybeSingle();return role=data?.role||null}
 async function ddtFor(id){const {data,error}=await sb.from('ddt_documents').select('*').eq('assistance_id',id).order('created_at',{ascending:false}).limit(1);if(error)throw error;return data?.[0]||null}
-function canvas(c,clear){if(!c)return;const x=c.getContext('2d');x.lineWidth=3;x.lineCap='round';x.strokeStyle='#111';let on=false,last;const p=e=>{const r=c.getBoundingClientRect();return{x:(e.clientX-r.left)*c.width/r.width,y:(e.clientY-r.top)*c.height/r.height}};c.onpointerdown=e=>{on=true;last=p(e);c.dataset.signed='1';e.preventDefault()};c.onpointermove=e=>{if(!on)return;const q=p(e);x.beginPath();x.moveTo(last.x,last.y);x.lineTo(q.x,q.y);x.stroke();last=q;e.preventDefault()};c.onpointerup=c.onpointercancel=()=>on=false;if(clear)clear.onclick=()=>{x.clearRect(0,0,c.width,c.height);c.dataset.signed='0'}}
+function canvas(c,clear){
+  if(!c)return;
+  const x=c.getContext('2d');
+  x.lineWidth=3;x.lineCap='round';x.lineJoin='round';x.strokeStyle='#111';
+  c.style.touchAction='none';c.style.webkitUserSelect='none';c.style.userSelect='none';
+  let on=false,last=null;
+  const point=(clientX,clientY)=>{const r=c.getBoundingClientRect();return{x:(clientX-r.left)*c.width/Math.max(r.width,1),y:(clientY-r.top)*c.height/Math.max(r.height,1)}};
+  const start=(clientX,clientY)=>{on=true;last=point(clientX,clientY);c.dataset.signed='1'};
+  const move=(clientX,clientY)=>{if(!on||!last)return;const q=point(clientX,clientY);x.beginPath();x.moveTo(last.x,last.y);x.lineTo(q.x,q.y);x.stroke();last=q;c.dataset.signed='1'};
+  const stop=()=>{on=false;last=null};
+
+  if(isIOS){
+    c.addEventListener('touchstart',e=>{const t=e.touches?.[0];if(!t)return;e.preventDefault();start(t.clientX,t.clientY)},{passive:false});
+    c.addEventListener('touchmove',e=>{const t=e.touches?.[0];if(!t||!on)return;e.preventDefault();move(t.clientX,t.clientY)},{passive:false});
+    c.addEventListener('touchend',e=>{e.preventDefault();stop()},{passive:false});
+    c.addEventListener('touchcancel',e=>{e.preventDefault();stop()},{passive:false});
+  }else{
+    c.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse'&&e.button!==0)return;e.preventDefault();try{c.setPointerCapture?.(e.pointerId)}catch(_){}start(e.clientX,e.clientY)});
+    c.addEventListener('pointermove',e=>{if(!on)return;e.preventDefault();move(e.clientX,e.clientY)});
+    c.addEventListener('pointerup',e=>{e.preventDefault();stop()});
+    c.addEventListener('pointercancel',stop);
+  }
+
+  if(clear)clear.onclick=()=>{x.clearRect(0,0,c.width,c.height);c.dataset.signed='0';stop()};
+}
 function err(m=''){const e=$('assV4Error');if(e){e.textContent=m;e.style.display=m?'block':'none'}}
 function removeOld(root){
   root.querySelectorAll('[data-assistance-close-flow],[data-assistance-close-flow-v3],[data-assistance-close-flow-v4],[data-auto-assistance-report],[data-ddt-card]').forEach(x=>x.remove());
   [...root.querySelectorAll('.ass-detail-section,.report-card,.detail-card,.ddt-card')].forEach(s=>{
     const t=(s.textContent||'').replace(/\s+/g,' ').trim().toLowerCase();
-    if(t.includes('firma non disponibile')||t.includes('rapportino di fine assistenza')||t.startsWith('documenti')||t.includes('modulo originale')||t.includes('modulo firmato')||t.includes('rapportino finale')||t.includes('riprova invio email'))s.remove();
+    if(t.includes('firma digitale cliente')||t.includes('firma non disponibile')||t.includes('rapportino di fine assistenza')||t.startsWith('documenti')||t.includes('modulo originale')||t.includes('modulo firmato')||t.includes('rapportino finale')||t.includes('riprova invio email'))s.remove();
   });
   root.querySelectorAll('.ddt-sign-grid').forEach(x=>{if(!x.closest('[data-assistance-close-flow-v4]'))x.remove()});
 }
@@ -18,6 +43,7 @@ async function render(){const dlg=$('assistanceDetailDialog'),root=$('assDetailC
 canvas($('assV4ReportInstaller'),$('assV4RIClear'));canvas($('assV4ReportClient'),$('assV4RCClear'));if(d){canvas($('assV4DdtInstaller'),$('assV4DIClear'));canvas($('assV4DdtClient'),$('assV4DCClear'))}document.querySelectorAll('input[name="assV4Resolved"]').forEach(r=>r.addEventListener('change',syncResolved));syncResolved();$('assV4Send')?.addEventListener('click',()=>finalize(a,d));}
 async function finalize(a,d){if(busy)return;err('');const resolved=document.querySelector('input[name="assV4Resolved"]:checked')?.value;if(!resolved)return err('Indica se il problema è stato risolto.');const no=resolved==='false',intervention=($('assV4Intervention')?.value||'').trim(),notes=($('assV4Notes')?.value||'').trim(),signer=($('assV4Signer')?.value||'').trim();if(no&&!intervention)return err('Descrivi come siamo intervenuti.');if(!notes)return err('Inserisci le note finali.');if(!signer)return err('Inserisci nome e cognome del cliente.');for(const [id,label] of [['assV4ReportInstaller','Firma Posatore – Rapportino'],['assV4ReportClient','Firma Cliente – Rapportino'],['assV4DdtInstaller','Firma Posatore – DDT'],['assV4DdtClient','Firma Cliente – DDT']])if($(id)?.dataset.signed!=='1')return err(label+' obbligatoria.');if(!d)return err('DDT non presente.');busy=true;const btn=$('assV4Send'),p=$('assV4Progress');btn.disabled=true;try{const ri=$('assV4ReportInstaller').toDataURL('image/png'),rc=$('assV4ReportClient').toDataURL('image/png'),di=$('assV4DdtInstaller').toDataURL('image/png'),dc=$('assV4DdtClient').toDataURL('image/png');p.textContent='1/3 · Generazione DDT firmato…';let r=await sb.functions.invoke('finalize-ddt',{body:{ddt_id:d.id,installer_signature_data_url:di,client_signature_data_url:dc}});if(r.error||!r.data?.ok)throw Error(r.data?.error||r.error?.message||'Errore DDT');p.textContent='2/3 · Generazione Rapportino firmato…';r=await sb.functions.invoke('finalize-assistance-v2',{body:{assistance_id:a.id,intervention:no?intervention:'Problema risolto',problem_resolved:resolved==='true',final_notes:notes,installer_signer_name:'Angelo Idone',installer_signature_data_url:ri,signer_name:signer,signature_data_url:rc}});if(r.error||!r.data?.ok)throw Error(r.data?.error||r.error?.message||'Errore Rapportino');p.textContent='3/3 · Verifica documenti e invio unica email…';r=await sb.functions.invoke('send-assistance-package',{body:{assistance_id:a.id}});if(r.error||!r.data?.ok)throw Error(r.data?.error||r.error?.message||'Errore invio');toast('Rapportino + DDT inviati in un’unica email.');busy=false;$('assistanceDetailDialog')?.close()}catch(e){console.error(e);err(e.message||String(e));p.textContent='Nessuna nuova email inviata. Correggi e riprova.';busy=false;btn.disabled=false}}
 document.addEventListener('click',e=>{const c=e.target.closest('[data-assistance]');if(c?.dataset.assistance){currentId=c.dataset.assistance;setTimeout(()=>render().catch(console.warn),260)}},true);
+document.addEventListener('touchend',e=>{if(!isIOS)return;const b=e.target.closest?.('#assClose');if(!b)return;e.preventDefault();const dlg=$('assistanceDetailDialog');if(dlg?.open)dlg.close()},{passive:false});
 new MutationObserver(()=>{const dlg=$('assistanceDetailDialog');if(dlg?.open&&currentId)setTimeout(()=>render().catch(console.warn),80)}).observe(document.body,{subtree:true,attributes:true,attributeFilter:['open']});
 window.addEventListener('load',async()=>{await profile();const q=new URLSearchParams(location.search).get('assistance');if(q){currentId=q;setTimeout(()=>render().catch(console.warn),900)}});
 })();
