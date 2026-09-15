@@ -1,155 +1,161 @@
 import { createClient } from "npm:@supabase/supabase-js@2";
 
-const SUPABASE_URL=Deno.env.get("SUPABASE_URL")!;
-const ANON_KEY=Deno.env.get("SUPABASE_ANON_KEY")!;
-const SERVICE_ROLE_KEY=Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const RESEND_API_KEY=Deno.env.get("RESEND_API_KEY")||"";
-const FROM_EMAIL=Deno.env.get("ASSISTANCE_FROM_EMAIL")||"posapw@planetwindows.it";
+const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
+const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
+const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY") || "";
+const FROM_EMAIL = Deno.env.get("ASSISTANCE_FROM_EMAIL") || "posapw@planetwindows.it";
 
-const admin=createClient(SUPABASE_URL,SERVICE_ROLE_KEY,{auth:{persistSession:false,autoRefreshToken:false}});
-const cors={
-  "Access-Control-Allow-Origin":"*",
-  "Access-Control-Allow-Headers":"authorization, x-client-info, apikey, content-type",
-  "Content-Type":"application/json"
+const admin = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+  auth: { persistSession: false, autoRefreshToken: false },
+});
+
+const cors = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Content-Type": "application/json",
 };
 
-const json=(d:unknown,s=200)=>new Response(JSON.stringify(d),{status:s,headers:cors});
-const safe=(v:unknown)=>String(v??"").trim();
+const json = (d: unknown, s = 200) => new Response(JSON.stringify(d), { status: s, headers: cors });
+const safe = (v: unknown) => String(v ?? "").trim();
 
-function b64(bytes:Uint8Array){
-  let out="";
-  for(let i=0;i<bytes.length;i+=0x8000){
-    out+=String.fromCharCode(...bytes.subarray(i,Math.min(i+0x8000,bytes.length)));
+function b64(bytes: Uint8Array) {
+  let out = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    out += String.fromCharCode(...bytes.subarray(i, Math.min(i + 0x8000, bytes.length)));
   }
   return btoa(out);
 }
 
-async function read(bucket:string,path:string){
-  const {data,error}=await admin.storage.from(bucket).download(path);
-  if(error||!data)throw error||new Error("Documento non disponibile");
+async function read(bucket: string, path: string) {
+  const { data, error } = await admin.storage.from(bucket).download(path);
+  if (error || !data) throw error || new Error("Documento non disponibile");
   return new Uint8Array(await data.arrayBuffer());
 }
 
-Deno.serve(async req=>{
-  let assistanceId="";
+Deno.serve(async (req) => {
+  let assistanceId = "";
+  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
+  if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
-  if(req.method==="OPTIONS")return new Response("ok",{headers:cors});
-  if(req.method!=="POST")return json({error:"Method not allowed"},405);
+  try {
+    const auth = req.headers.get("Authorization") || "";
+    if (!auth) return json({ error: "Sessione mancante" }, 401);
 
-  try{
-    const auth=req.headers.get("Authorization")||"";
-    if(!auth)return json({error:"Sessione mancante"},401);
-
-    const uc=createClient(SUPABASE_URL,ANON_KEY,{
-      global:{headers:{Authorization:auth}},
-      auth:{persistSession:false,autoRefreshToken:false}
+    const uc = createClient(SUPABASE_URL, ANON_KEY, {
+      global: { headers: { Authorization: auth } },
+      auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    const {data:{user}}=await uc.auth.getUser();
-    if(!user)return json({error:"Utente non autenticato"},401);
+    const { data: { user } } = await uc.auth.getUser();
+    if (!user) return json({ error: "Utente non autenticato" }, 401);
 
-    const {data:p}=await admin.from("profiles").select("role").eq("id",user.id).maybeSingle();
-    if(p?.role!=="installer")return json({error:"Solo il posatore può completare l'invio"},403);
+    const { data: p } = await admin.from("profiles").select("role").eq("id", user.id).maybeSingle();
+    if (p?.role !== "installer") return json({ error: "Solo il posatore può completare l'invio" }, 403);
 
-    const body=await req.json();
-    const id=safe(body.assistance_id);
-    assistanceId=id;
-    if(!id)return json({error:"assistance_id obbligatorio"},400);
+    const body = await req.json();
+    const id = safe(body.assistance_id);
+    assistanceId = id;
+    if (!id) return json({ error: "assistance_id obbligatorio" }, 400);
 
-    const {data:a,error:ae}=await uc.from("assistances").select("*").eq("id",id).single();
-    if(ae||!a)return json({error:"Assistenza non accessibile"},403);
-    if(a.email_status==="sent")return json({ok:true,already_sent:true});
-    if(!a.final_report_path)return json({error:"Rapportino firmato non disponibile: nessuna email inviata"},409);
-    if(!safe(a.client_email))return json({error:"Email cliente mancante: nessuna email inviata"},409);
-    if(!RESEND_API_KEY)throw new Error("RESEND_API_KEY non configurata");
+    const { data: a, error: ae } = await uc.from("assistances").select("*").eq("id", id).single();
+    if (ae || !a) return json({ error: "Assistenza non accessibile" }, 403);
 
-    const {data:ddts,error:de}=await admin
+    if (a.email_status === "sent") {
+      const { data: existingDdts } = await admin.from("ddt_documents").select("signed_path").eq("assistance_id", id).order("created_at", { ascending: false }).limit(1);
+      return json({ ok: true, already_sent: true, attachments: existingDdts?.[0]?.signed_path ? 2 : 1 });
+    }
+
+    if (!a.final_report_path) return json({ error: "Rapportino firmato non disponibile: nessuna email inviata" }, 409);
+    if (!safe(a.client_email)) return json({ error: "Email cliente mancante: nessuna email inviata" }, 409);
+    if (!RESEND_API_KEY) throw new Error("RESEND_API_KEY non configurata");
+
+    const report = await read("pw-assistance-private", a.final_report_path);
+    const attachments: Array<{ filename: string; content: string }> = [
+      {
+        filename: a.final_report_name || "Rapportino_Assistenza_firmato.pdf",
+        content: b64(report),
+      },
+    ];
+
+    const { data: ddts, error: de } = await admin
       .from("ddt_documents")
       .select("*")
-      .eq("assistance_id",id)
-      .order("created_at",{ascending:false})
+      .eq("assistance_id", id)
+      .order("created_at", { ascending: false })
       .limit(1);
-    if(de)throw de;
+    if (de) throw de;
 
-    const ddt=ddts?.[0]||null;
-    if(ddt&&!ddt.signed_path){
-      return json({error:"È presente un DDT, ma non è ancora firmato: nessuna email inviata"},409);
-    }
+    const ddt = ddts?.[0] || null;
+    let includeDdt = false;
 
-    const report=await read("pw-assistance-private",a.final_report_path);
-    const attachments:any[]=[{
-      filename:a.final_report_name||"Rapportino_Assistenza_firmato.pdf",
-      content:b64(report)
-    }];
-
-    if(ddt){
-      const ddtBytes=await read("pw-ddt-private",ddt.signed_path);
+    if (ddt?.signed_path) {
+      const ddtBytes = await read("pw-ddt-private", ddt.signed_path);
       attachments.push({
-        filename:ddt.signed_name||"DDT_Firmato.pdf",
-        content:b64(ddtBytes)
+        filename: ddt.signed_name || "DDT_Firmato.pdf",
+        content: b64(ddtBytes),
       });
+      includeDdt = true;
     }
 
-    const docsText=ddt
+    const documentText = includeDdt
       ? "rapportino di assistenza e DDT firmato"
       : "rapportino di assistenza firmato";
 
-    const rr=await fetch("https://api.resend.com/emails",{
-      method:"POST",
-      headers:{
-        Authorization:`Bearer ${RESEND_API_KEY}`,
-        "Content-Type":"application/json"
+    const rr = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${RESEND_API_KEY}`,
+        "Content-Type": "application/json",
       },
-      body:JSON.stringify({
-        from:FROM_EMAIL,
-        to:[a.client_email],
-        subject:`Planet Windows · Assistenza ${a.protocol_order}`,
-        html:`<p>Gentile ${a.client_name},</p><p>in allegato trova la documentazione firmata relativa all'assistenza <strong>${a.protocol_order}</strong>: ${docsText}.</p><p>Grazie,<br>Planet Windows</p>`,
-        attachments
-      })
+      body: JSON.stringify({
+        from: FROM_EMAIL,
+        to: [a.client_email],
+        subject: `Planet Windows · Assistenza ${a.protocol_order}`,
+        html: `<p>Gentile ${a.client_name},</p><p>in allegato trova la documentazione firmata relativa all'assistenza <strong>${a.protocol_order}</strong>: ${documentText}.</p><p>Grazie,<br>Planet Windows</p>`,
+        attachments,
+      }),
     });
 
-    if(!rr.ok)throw new Error(`Servizio email: ${rr.status} ${await rr.text()}`);
+    if (!rr.ok) throw new Error(`Servizio email: ${rr.status} ${await rr.text()}`);
 
-    const resendPayload=await rr.json().catch(()=>null);
-    const now=new Date().toISOString();
+    const resendPayload = await rr.json().catch(() => null);
+    const now = new Date().toISOString();
 
-    const {error:ue}=await admin.from("assistances").update({
-      status:"completed",
-      completed_by:user.id,
-      completed_at:now,
-      email_status:"sent",
-      email_last_error:null,
-      updated_by:user.id
-    }).eq("id",id);
-    if(ue)throw ue;
+    const { error: ue } = await admin.from("assistances").update({
+      status: "completed",
+      completed_by: user.id,
+      completed_at: now,
+      email_status: "sent",
+      email_last_error: null,
+      updated_by: user.id,
+    }).eq("id", id);
+    if (ue) throw ue;
 
-    if(ddt){
-      const {error:du}=await admin.from("ddt_documents").update({
-        email_status:"sent",
-        email_last_error:null
-      }).eq("id",ddt.id);
-      if(du)throw du;
+    if (includeDdt && ddt?.id) {
+      const { error: du } = await admin.from("ddt_documents").update({
+        email_status: "sent",
+        email_last_error: null,
+      }).eq("id", ddt.id);
+      if (du) throw du;
     }
 
     return json({
-      ok:true,
-      already_sent:false,
-      attachments:attachments.length,
-      ddt_included:!!ddt,
-      email_id:resendPayload?.id||null
+      ok: true,
+      already_sent: false,
+      attachments: attachments.length,
+      included_ddt: includeDdt,
+      email_id: resendPayload?.id || null,
     });
-  }catch(e){
-    const message=e instanceof Error?e.message:String(e);
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
     console.error(e);
-
-    if(assistanceId){
-      const {data:current}=await admin.from("assistances").select("email_status").eq("id",assistanceId).maybeSingle();
-      if(current?.email_status!=="sent"){
-        await admin.from("assistances").update({email_status:"failed",email_last_error:message}).eq("id",assistanceId);
+    if (assistanceId) {
+      const { data: current } = await admin.from("assistances").select("email_status").eq("id", assistanceId).maybeSingle();
+      if (current?.email_status !== "sent") {
+        await admin.from("assistances").update({ email_status: "failed", email_last_error: message }).eq("id", assistanceId);
       }
     }
-
-    return json({ok:false,error:message},500);
+    return json({ ok: false, error: message }, 500);
   }
 });
