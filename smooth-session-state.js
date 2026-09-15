@@ -79,14 +79,3 @@
   }
   window.addEventListener('load',()=>setTimeout(restoreOpenContext,450));
 })();
-
-// Load the iPhone assistance touch hard-fix directly from a script that PW Posa
-// already loads on every start. This bypasses stale PWA/service-worker HTML caches.
-(()=>{
-  if(document.querySelector('script[data-ios-touch-hardfix]'))return;
-  const s=document.createElement('script');
-  s.src='./ios-touch-hardfix.js?v=20260915-hardfix2';
-  s.dataset.iosTouchHardfix='1';
-  s.async=false;
-  document.head.appendChild(s);
-})();
