@@ -32,7 +32,61 @@
   }
   function block(kind,required,helpText=''){const p=kind==='pose'?'pose':'ass';const help=helpText||(required?'Obbligatorio per la posa. Carica il PDF e verifica le due aree firma.':'Facoltativo per l’assistenza. Caricalo solo quando serve per materiali o sostituzioni.');return `<div id="${p}DdtBlock" class="span2 ddt-upload-block"><div class="ddt-upload-head"><div><strong>DDT ${required?'<span class="ddt-required">*</span>':''}</strong><span>${help}</span></div><button type="button" class="btn ghost" id="${p}DdtBtn">+ Aggiungi DDT</button></div><input id="${p}DdtInput" type="file" accept="application/pdf" hidden><div id="${p}DdtPreview" class="ddt-preview"><span class="muted">Nessun DDT caricato.</span></div></div>`}
   function bindUpload(kind){const p=kind==='pose'?'pose':'ass';$(p+'DdtBtn').onclick=()=>$(p+'DdtInput').click();$(p+'DdtInput').onchange=async e=>{const f=e.target.files?.[0];e.target.value='';if(!f)return;if(f.type!=='application/pdf'&&!/\.pdf$/i.test(f.name))return toast('Il DDT deve essere un PDF.');const s=kindState(kind);s.file=f;s.existing=s.existing||null;try{const pdf=await loadPdf(f);const page=pdf.numPages;s.areas=defaultAreas(page);renderPreview(kind);await openSetup(kind,f)}catch(err){console.error(err);toast('Impossibile leggere il PDF: '+err.message)}}}
-  function renderPreview(kind){const s=kindState(kind),p=kind==='pose'?'pose':'ass',e=s.existing,name=s.file?.name||e?.original_name;if(!name){$(p+'DdtPreview').innerHTML='<span class="muted">Nessun DDT caricato.</span>';return}const signed=e?.signed_path?'<span class="badge green">Firmato</span>':'';$(p+'DdtPreview').innerHTML=`<div><strong>${esc(name)}</strong><div class="muted">Aree firma: ${s.areas?.installer&&s.areas?.client?'impostate':'da impostare'}</div></div><div style="display:flex;gap:8px;flex-wrap:wrap">${signed}<button type="button" class="btn ghost" data-ddt-configure="${kind}">Modifica aree firma</button>${e?.original_path?`<button type="button" class="btn ghost" data-ddt-open="${kind}">Apri PDF</button>`:''}</div>`;$(p+'DdtPreview').querySelector('[data-ddt-configure]')?.addEventListener('click',()=>openSetup(kind));$(p+'DdtPreview').querySelector('[data-ddt-open]')?.addEventListener('click',async()=>window.open(await signedUrl(e.original_path),'_blank','noopener'))}
+  function renderPreview(kind){
+    const s=kindState(kind),p=kind==='pose'?'pose':'ass',e=s.existing,name=s.file?.name||e?.original_name;
+    const host=$(p+'DdtPreview'); if(!host)return;
+    if(!name){host.innerHTML='<span class="muted">Nessun DDT caricato.</span>';return}
+    const signed=e?.signed_path?'<span class="badge green">Firmato</span>':'';
+    host.innerHTML=`<div><strong>${esc(name)}</strong><div class="muted">Aree firma: ${s.areas?.installer&&s.areas?.client?'impostate':'da impostare'}</div></div><div style="display:flex;gap:8px;flex-wrap:wrap">${signed}<button type="button" class="btn ghost" data-ddt-configure="${kind}">Modifica aree firma</button>${e?.original_path?`<button type="button" class="btn ghost" data-ddt-open="${kind}">Apri PDF</button>`:''}<button type="button" class="btn ghost delete-ddt-btn" data-ddt-remove="${kind}">Elimina DDT</button></div>`;
+    host.querySelector('[data-ddt-configure]')?.addEventListener('click',()=>openSetup(kind));
+    host.querySelector('[data-ddt-open]')?.addEventListener('click',async()=>window.open(await signedUrl(e.original_path),'_blank','noopener'));
+    host.querySelector('[data-ddt-remove]')?.addEventListener('click',()=>removeDdt(kind));
+  }
+
+  function resetDdtState(kind){
+    const s=kindState(kind);
+    s.file=null;
+    s.existing=null;
+    s.areas=null;
+    const p=kind==='pose'?'pose':'ass';
+    const input=$(p+'DdtInput');
+    if(input)input.value='';
+    renderPreview(kind);
+  }
+
+  async function removeDdt(kind){
+    const s=kindState(kind);
+    const existing=s.existing;
+    const localFile=s.file;
+
+    if(!existing && !localFile){
+      resetDdtState(kind);
+      return;
+    }
+
+    if(existing){
+      const ok=window.confirm('Eliminare questo DDT? Il documento verrà rimosso solo da questa '+(kind==='assistance'?'assistenza':'posa')+'.');
+      if(!ok)return;
+      try{
+        const paths=[existing.original_path,existing.signed_path].filter(Boolean);
+        const del=await sb.from('ddt_documents').delete().eq('id',existing.id);
+        if(del.error)throw del.error;
+        if(paths.length){
+          const storageDelete=await sb.storage.from(B).remove(paths);
+          if(storageDelete.error)console.warn('PW Posa: file DDT non rimosso dallo storage',storageDelete.error);
+        }
+        resetDdtState(kind);
+        toast('DDT eliminato.');
+      }catch(err){
+        console.error('PW Posa elimina DDT:',err);
+        toast('Non riesco a eliminare il DDT: '+(err.message||String(err)));
+      }
+      return;
+    }
+
+    resetDdtState(kind);
+    toast('DDT rimosso.');
+  }
   async function loadPdf(fileOrBlob){if(!window.pdfjsLib)throw Error('Lettore PDF non disponibile');const buf=await fileOrBlob.arrayBuffer();return window.pdfjsLib.getDocument({data:buf}).promise}
   async function openSetup(kind,localFile=null){state.setupKind=kind;const s=kindState(kind);let source=localFile||s.file;if(!source&&s.existing?.original_path)source=await fileBlob(s.existing.original_path);if(!source)return toast('Carica prima il DDT.');state.setupPdf=await loadPdf(source);const page=Math.min(Math.max(1,s.areas?.installer?.page||s.areas?.client?.page||state.setupPdf.numPages),state.setupPdf.numPages);$('ddtPage').max=state.setupPdf.numPages;$('ddtPage').value=page;setRole('installer');await renderSetupPage(page);$('ddtSetupDialog').showModal()}
   function setRole(role){state.setupRole=role;$('ddtSetInstaller').classList.toggle('active',role==='installer');$('ddtSetClient').classList.toggle('active',role==='client')}
@@ -57,7 +111,37 @@
 
   async function renderDetail(kind,id,host){if(!id||!host)return;const profile=await getProfile(),d=await getDoc(kind,id);host.querySelector('[data-ddt-card]')?.remove();const parent=kind==='pose'?await sb.from('poses').select('job_number,client_name,client_email').eq('id',id).single():await sb.from('assistances').select('protocol_order,client_name,client_email').eq('id',id).single();const p=parent.data||{},label=kind==='pose'?`Posa ${p.job_number||''}`:`Assistenza ${p.protocol_order||''}`;const card=document.createElement('div');card.className='ddt-card';card.dataset.ddtCard='1';if(!d){card.innerHTML=`<div class="ddt-card-head"><div><strong>DDT</strong><div class="muted">${kind==='pose'?'DDT non disponibile. Contatta l’Ufficio.':'Nessun DDT previsto per questa assistenza.'}</div></div></div>`;host.appendChild(card);return}card.innerHTML=`<div class="ddt-card-head"><div><strong>DDT</strong><div class="muted">${esc(d.original_name)}</div></div><span class="badge ${d.signed_path?'green':'orange'}">${d.signed_path?'Firmato':'Da firmare'}</span></div><div class="ddt-actions"><button type="button" class="btn ghost" data-ddt-detail-open>Apri originale</button>${d.signed_path?'<button type="button" class="btn ghost" data-ddt-signed-open>Apri firmato</button>':''}${profile?.role==='installer'&&!d.signed_path?'<button type="button" class="btn primary" data-ddt-sign>Firma DDT</button>':''}</div><div class="ddt-email-status">Email cliente: ${esc(p.client_email||'—')} · Stato invio: ${esc(d.email_status||'pending')}</div>`;host.appendChild(card);card.querySelector('[data-ddt-detail-open]').onclick=async()=>window.open(await signedUrl(d.original_path),'_blank','noopener');card.querySelector('[data-ddt-signed-open]')?.addEventListener('click',async()=>window.open(await signedUrl(d.signed_path),'_blank','noopener'));card.querySelector('[data-ddt-sign]')?.addEventListener('click',()=>openSign(d,`${label} · ${p.client_name||''}`))}
 
-  document.addEventListener('click',e=>{const a=e.target.closest('[data-assistance]');if(a?.dataset.assistance)state.currentAssistance=a.dataset.assistance;const p=e.target.closest('[data-pose]');if(p?.dataset.pose)state.currentPose=p.dataset.pose;if(e.target.closest('#newPoseBtn')){state.currentAssistance=null;state.currentPose=null;state.pose.file=null;state.pose.existing=null;state.pose.areas=null;state.assistance.file=null;state.assistance.existing=null;state.assistance.areas=null}setTimeout(()=>{if(state.currentPose&&$('detailDialog')?.open)renderDetail('pose',state.currentPose,$('detailContent')).catch(console.warn);if(state.currentAssistance&&$('assistanceDetailDialog')?.open)renderDetail('assistance',state.currentAssistance,$('assDetailContent')).catch(console.warn)},280)},true);
+  document.addEventListener('click',e=>{
+    const a=e.target.closest('[data-assistance]');
+    if(a?.dataset.assistance)state.currentAssistance=a.dataset.assistance;
+    const p=e.target.closest('[data-pose]');
+    if(p?.dataset.pose)state.currentPose=p.dataset.pose;
+
+    if(e.target.closest('#newPoseBtn')){
+      state.currentAssistance=null;
+      state.currentPose=null;
+      resetDdtState('pose');
+      resetDdtState('assistance');
+    }
+
+    const typeButton=e.target.closest('[data-program-type]');
+    if(typeButton){
+      setTimeout(()=>{
+        const kind=typeButton.dataset.programType==='assistance'?'assistance':'pose';
+        if(kind==='assistance'){
+          if(state.currentAssistance)hydrateAssistanceForm().catch(console.warn);
+          else resetDdtState('assistance');
+        }else if(!state.currentPose){
+          resetDdtState('pose');
+        }
+      },60);
+    }
+
+    setTimeout(()=>{
+      if(state.currentPose&&$('detailDialog')?.open)renderDetail('pose',state.currentPose,$('detailContent')).catch(console.warn);
+      if(state.currentAssistance&&$('assistanceDetailDialog')?.open)renderDetail('assistance',state.currentAssistance,$('assDetailContent')).catch(console.warn);
+    },280);
+  },true);
   const obs=()=>{const dlg=$('poseDialog');if(dlg)new MutationObserver(()=>{if(!dlg.open)return;setTimeout(()=>{if(mode()==='pose')hydratePoseForm().catch(console.warn);else hydrateAssistanceForm().catch(console.warn)},120)}).observe(dlg,{attributes:true,attributeFilter:['open']})};
   inject();obs();window.PW_DDT={validatePoseBeforeSave,saveForPose,saveForAssistance,getPoseEmail,hydrateAssistanceForm};
 })();
