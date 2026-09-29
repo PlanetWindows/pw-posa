@@ -120,10 +120,50 @@
     await loadPoses();
     if(isOffice() && !state.teams.length) await loadTeams();
 
+    /* Calendario unificato: pose e assistenze vengono renderizzate insieme.
+       Evita i vecchi renderer separati che rimuovevano/ricreavano le assistenze
+       e provocavano il lampeggio continuo su PC e iPhone. */
+    let calendarAssistances = [];
+    let assistanceDateRows = [];
+    try{
+      const ar = await sb.from("assistances")
+        .select("id,protocol_order,client_name,start_time,scheduled_date,scheduled_end_date")
+        .order("scheduled_date")
+        .order("start_time");
+      if(!ar.error){
+        calendarAssistances = ar.data || [];
+        const ids = calendarAssistances.map(a=>a.id);
+        if(ids.length){
+          const dr = await sb.from("assistance_dates")
+            .select("assistance_id,assistance_date")
+            .in("assistance_id", ids);
+          if(!dr.error) assistanceDateRows = dr.data || [];
+        }
+      }
+    }catch(err){
+      console.warn("PW Posa calendario assistenze:", err);
+    }
+
     const cursor = state.calendarCursor;
     const monthTitle = cursor.toLocaleDateString("it-IT", {month:"long", year:"numeric"});
     const days = monthMatrix(cursor);
     const byDate = state.poses.reduce((a,p)=>((a[p.scheduled_date] ||= []).push(p),a),{});
+
+    const assistanceDatesById = new Map();
+    for(const row of assistanceDateRows){
+      if(!assistanceDatesById.has(row.assistance_id)) assistanceDatesById.set(row.assistance_id, new Set());
+      assistanceDatesById.get(row.assistance_id).add(row.assistance_date);
+    }
+    const assistanceByDate = {};
+    for(const a of calendarAssistances){
+      const dates = assistanceDatesById.get(a.id) || new Set([a.scheduled_date]);
+      if(!dates.size && a.scheduled_date) dates.add(a.scheduled_date);
+      for(const date of dates){
+        if(!date) continue;
+        (assistanceByDate[date] ||= []).push(a);
+      }
+    }
+
     const todayIso = isoLocal(new Date());
 
     const weekdayHeader = ["Lun","Mar","Mer","Gio","Ven","Sab","Dom"].map(x=>`<div class="calendar-weekday">${x}</div>`).join("");
@@ -131,11 +171,22 @@
       const iso = isoLocal(d);
       const outside = d.getMonth() !== cursor.getMonth();
       const today = iso === todayIso;
-      const items = (byDate[iso]||[]).map(p=>`
-        <button type="button" class="pose-chip" data-pose="${esc(p.id)}">
+
+      const poseItems = (byDate[iso]||[]).map(p=>`
+        <button type="button" class="pose-chip pw-calendar-pose" data-pose="${esc(p.id)}">
+          <span class="pw-type-label posa">POSA</span>
           <strong>${esc(fmtTime(p.start_time))} · ${esc(p.job_number)}</strong>
           <span>${esc(p.client_name)}</span>
         </button>`).join("");
+
+      const assistanceItems = (assistanceByDate[iso]||[]).map(a=>`
+        <button type="button" class="pose-chip assistance-chip pw-calendar-assistance" data-assistance="${esc(a.id)}">
+          <span class="pw-type-label assistenza">ASSISTENZA</span>
+          <strong>${esc(fmtTime(a.start_time))} · ${esc(a.protocol_order)}</strong>
+          <span>${esc(a.client_name)}</span>
+        </button>`).join("");
+
+      const items = poseItems + assistanceItems;
       return `<div class="calendar-day${outside ? " outside-month" : ""}${today ? " today" : ""}">
         <div class="date"><span>${d.getDate()}</span></div>
         <div class="calendar-day-poses">${items || '<span class="calendar-empty">—</span>'}</div>
