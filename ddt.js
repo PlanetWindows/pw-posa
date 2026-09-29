@@ -37,7 +37,8 @@
     const host=$(p+'DdtPreview'); if(!host)return;
     if(!name){host.innerHTML='<span class="muted">Nessun DDT caricato.</span>';return}
     const signed=e?.signed_path?'<span class="badge green">Firmato</span>':'';
-    host.innerHTML=`<div><strong>${esc(name)}</strong><div class="muted">Aree firma: ${s.areas?.installer&&s.areas?.client?'impostate':'da impostare'}</div></div><div style="display:flex;gap:8px;flex-wrap:wrap">${signed}<button type="button" class="btn ghost" data-ddt-configure="${kind}">Modifica aree firma</button>${e?.original_path?`<button type="button" class="btn ghost" data-ddt-open="${kind}">Apri PDF</button>`:''}<button type="button" class="btn ghost delete-ddt-btn" data-ddt-remove="${kind}">Elimina DDT</button></div>`;
+    const removeButton=kind==='assistance'?'<button type="button" class="btn ghost delete-ddt-btn" data-ddt-remove="assistance">Elimina DDT</button>':'';
+    host.innerHTML=`<div><strong>${esc(name)}</strong><div class="muted">Aree firma: ${s.areas?.installer&&s.areas?.client?'impostate':'da impostare'}</div></div><div style="display:flex;gap:8px;flex-wrap:wrap">${signed}<button type="button" class="btn ghost" data-ddt-configure="${kind}">Modifica aree firma</button>${e?.original_path&&!s.file?`<button type="button" class="btn ghost" data-ddt-open="${kind}">Apri PDF</button>`:''}${removeButton}</div>`;
     host.querySelector('[data-ddt-configure]')?.addEventListener('click',()=>openSetup(kind));
     host.querySelector('[data-ddt-open]')?.addEventListener('click',async()=>window.open(await signedUrl(e.original_path),'_blank','noopener'));
     host.querySelector('[data-ddt-remove]')?.addEventListener('click',()=>removeDdt(kind));
@@ -64,8 +65,23 @@
       return;
     }
 
+    /* Se è stato appena scelto un nuovo PDF ma non è ancora stato salvato,
+       elimina solo la nuova selezione. Un eventuale DDT già salvato resta intatto. */
+    if(localFile){
+      s.file=null;
+      if(existing){
+        s.areas={installer:existing.installer_signature_area,client:existing.client_signature_area};
+        renderPreview(kind);
+        toast('DDT appena selezionato rimosso.');
+      }else{
+        resetDdtState(kind);
+        toast('DDT rimosso.');
+      }
+      return;
+    }
+
     if(existing){
-      const ok=window.confirm('Eliminare questo DDT? Il documento verrà rimosso solo da questa '+(kind==='assistance'?'assistenza':'posa')+'.');
+      const ok=window.confirm('Eliminare questo DDT dall’assistenza?');
       if(!ok)return;
       try{
         const paths=[existing.original_path,existing.signed_path].filter(Boolean);
@@ -85,7 +101,6 @@
     }
 
     resetDdtState(kind);
-    toast('DDT rimosso.');
   }
   async function loadPdf(fileOrBlob){if(!window.pdfjsLib)throw Error('Lettore PDF non disponibile');const buf=await fileOrBlob.arrayBuffer();return window.pdfjsLib.getDocument({data:buf}).promise}
   async function openSetup(kind,localFile=null){state.setupKind=kind;const s=kindState(kind);let source=localFile||s.file;if(!source&&s.existing?.original_path)source=await fileBlob(s.existing.original_path);if(!source)return toast('Carica prima il DDT.');state.setupPdf=await loadPdf(source);const page=Math.min(Math.max(1,s.areas?.installer?.page||s.areas?.client?.page||state.setupPdf.numPages),state.setupPdf.numPages);$('ddtPage').max=state.setupPdf.numPages;$('ddtPage').value=page;setRole('installer');await renderSetupPage(page);$('ddtSetupDialog').showModal()}
