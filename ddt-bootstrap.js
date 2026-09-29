@@ -14,7 +14,7 @@
     const ready=document.getElementById('normalPoseFields')&&document.getElementById('assistanceFields');
     if(!ready){setTimeout(bootDdtAfterAssistance,120);return;}
     if(!document.querySelector('script[data-ddt-late="1"]')){
-      const s=document.createElement('script');s.src='ddt.js?v=20260904-ddt5';s.dataset.ddtLate='1';s.onload=ensureExtras;document.body.appendChild(s);
+      const s=document.createElement('script');s.src='ddt.js?v=20260929-ddtreset1';s.dataset.ddtLate='1';s.onload=ensureExtras;document.body.appendChild(s);
     }else ensureExtras();
   }
   if(document.readyState==='complete')bootDdtAfterAssistance();
