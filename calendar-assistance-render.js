@@ -1,4 +1,5 @@
 (() => {
+  window.PW_ASSISTANCE_CALENDAR_RENDERER = true;
   const cfg = window.PW_POSA_CONFIG || {};
   if (!window.supabase || !cfg.SUPABASE_URL || !cfg.SUPABASE_ANON_KEY) return;
   const sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
