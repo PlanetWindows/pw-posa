@@ -17,9 +17,21 @@
      stutter when the software keyboard opens. */
   .dialog.wide,#poseDialog.pose-modal{transform:none!important;backface-visibility:visible!important}
 
-  .calendar-day,.detail-card,.action-card,.report-card,.document-row{
+  .detail-card,.action-card,.report-card,.document-row{
     content-visibility:auto;
     contain-intrinsic-size:160px;
+  }
+  .calendar-day{
+    content-visibility:visible!important;
+    contain:none!important;
+  }
+  .calendar-assistance-injected,.assistance-chip{
+    animation:none!important;
+    transition:none!important;
+    opacity:1!important;
+    visibility:visible!important;
+    transform:none!important;
+    filter:none!important;
   }
   .push-notifications-toggle,.btn,.nav-item,.pose-chip{transition:none!important}
 
