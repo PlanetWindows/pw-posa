@@ -40,24 +40,42 @@
         if (!datesById.has(d.assistance_id)) datesById.set(d.assistance_id, new Set());
         datesById.get(d.assistance_id).add(d.assistance_date);
       }
-      document.querySelectorAll('.calendar-assistance-injected').forEach(x=>x.remove());
       const cellMap = new Map(grid.map(x=>[x.date,x.cell]));
+      const expected = new Set();
+
       for (const a of ar.data || []) {
         const dates = datesById.get(a.id) || new Set([a.scheduled_date]);
         if (!dates.size) dates.add(a.scheduled_date);
+
         for (const date of dates) {
           const cell = cellMap.get(date); if (!cell) continue;
           const host = cell.querySelector('.calendar-day-poses'); if (!host) continue;
+          const key = `${a.id}::${date}`;
+          expected.add(key);
+
           host.querySelector('.calendar-empty')?.remove();
-          if (host.querySelector(`[data-assistance="${CSS.escape(a.id)}"]`)) continue;
-          const btn = document.createElement('button');
-          btn.type='button';
-          btn.className='pose-chip assistance-chip pw-calendar-assistance calendar-assistance-injected';
-          btn.dataset.assistance=a.id;
-          btn.innerHTML=`<span class="pw-type-label assistenza">ASSISTENZA</span><strong>${esc(String(a.start_time||'').slice(0,5))} · ${esc(a.protocol_order)}</strong><span>${esc(a.client_name)}</span>`;
-          host.appendChild(btn);
+
+          let btn = host.querySelector(`.calendar-assistance-injected[data-assistance="${CSS.escape(a.id)}"]`);
+          if (!btn) {
+            btn = document.createElement('button');
+            btn.type='button';
+            btn.className='pose-chip assistance-chip pw-calendar-assistance calendar-assistance-injected';
+            btn.dataset.assistance=a.id;
+            btn.dataset.assistanceDate=date;
+            btn.innerHTML=`<span class="pw-type-label assistenza">ASSISTENZA</span><strong>${esc(String(a.start_time||'').slice(0,5))} · ${esc(a.protocol_order)}</strong><span>${esc(a.client_name)}</span>`;
+            host.appendChild(btn);
+          } else {
+            /* Non rimuovere e ricreare la scheda: su iPhone causava un lampeggio continuo. */
+            btn.dataset.assistanceDate=date;
+          }
         }
       }
+
+      /* Elimina solo eventuali assistenze che non appartengono più al mese/giorno corrente. */
+      document.querySelectorAll('.calendar-assistance-injected').forEach(btn => {
+        const key = `${btn.dataset.assistance || ''}::${btn.dataset.assistanceDate || ''}`;
+        if (!expected.has(key)) btn.remove();
+      });
     } finally { busy = false; }
   }
 
