@@ -50,7 +50,23 @@
 .calendar-month-button:hover{color:var(--gold-dark)}
 .calendar-month-picker{position:absolute;inset:0;width:100%;height:100%;opacity:.001;pointer-events:auto;cursor:pointer;z-index:3;border:0;background:transparent}
 .calendar-nav-hidden{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important;overflow:hidden!important;padding:0!important;border:0!important}
+
 .calendar-controls{display:flex;align-items:center;gap:8px}
+
+/* Selettore mese custom: evita il picker nativo type=month che su iPhone/PWA può non aprirsi. */
+.pw-month-picker{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;padding:18px}
+.pw-month-picker.hidden{display:none!important}
+.pw-month-picker-backdrop{position:absolute;inset:0;border:0;background:rgba(30,27,27,.48);padding:0}
+.pw-month-picker-card{position:relative;z-index:1;width:min(420px,calc(100vw - 28px));background:#fff;border-radius:20px;padding:18px;box-shadow:0 24px 70px rgba(33,29,30,.28)}
+.pw-month-picker-head{display:grid;grid-template-columns:46px 1fr 46px;align-items:center;gap:8px;margin-bottom:14px}
+.pw-month-picker-year{text-align:center;font-size:22px;color:var(--ink)}
+.pw-month-year-nav{height:42px;border:1px solid var(--line);border-radius:12px;background:#fff;color:var(--ink);font-size:20px}
+.pw-month-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.pw-month-option{min-height:44px;border:1px solid var(--line);border-radius:12px;background:#fff;color:var(--ink);font:inherit;font-size:13px;font-weight:600;padding:8px 5px}
+.pw-month-option.active{border-color:var(--gold);background:var(--gold-soft)}
+.pw-month-picker-close{width:100%;margin-top:14px;min-height:44px;border:1px solid var(--line);border-radius:12px;background:#fff;color:var(--ink);font:inherit;font-weight:600}
+body.pw-month-picker-open{overflow:hidden}
+
 
 @media(max-width:900px){
   .app-shell{grid-template-columns:minmax(0,1fr);width:100%;max-width:100%;min-width:0}
