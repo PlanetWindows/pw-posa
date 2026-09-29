@@ -48,7 +48,7 @@
 .calendar-month-button{appearance:none;border:0;background:transparent;color:var(--ink);font:inherit;font-weight:700;padding:2px 24px 2px 0;position:relative;text-align:left}
 .calendar-month-button:after{content:'▾';position:absolute;right:3px;top:50%;transform:translateY(-52%);font-size:12px;color:var(--gold-dark)}
 .calendar-month-button:hover{color:var(--gold-dark)}
-.calendar-month-picker{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none;left:0;bottom:0}
+.calendar-month-picker{position:absolute;inset:0;width:100%;height:100%;opacity:.001;pointer-events:auto;cursor:pointer;z-index:3;border:0;background:transparent}
 .calendar-nav-hidden{position:absolute!important;width:1px!important;height:1px!important;opacity:0!important;pointer-events:none!important;overflow:hidden!important;padding:0!important;border:0!important}
 .calendar-controls{display:flex;align-items:center;gap:8px}
 
