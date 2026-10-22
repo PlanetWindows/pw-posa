@@ -23,12 +23,13 @@
  const client={
   from:table=>new Query(table),
   auth:{getSession:async()=>({data:{session}}),onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}}),signOut:async()=>({error:null}),signInWithPassword:async()=>({data:{session},error:null})},
-  channel:()=>channel,removeChannel:async()=>{},rpc:async()=>({data:[],error:null}),functions:{invoke:async()=>({data:{ok:true},error:null})},
+  channel:()=>channel,removeChannel:async()=>{},rpc:async(name,args)=>{if(name==='register_push_subscription'){const list=db.push_subscriptions??=[];let row=list.find(r=>r.endpoint===args.p_endpoint);if(!row){row={id:crypto.randomUUID()};list.push(row);}Object.assign(row,{user_id:uid,endpoint:args.p_endpoint});}return {data:[],error:null};},functions:{invoke:async()=>({data:{ok:true},error:null})},
   storage:{from:()=>({
    createSignedUrl:async()=>({data:{signedUrl:location.origin+'/fixture-file.pdf'},error:null}),
    upload:async path=>({data:{path},error:null}),remove:async()=>({data:[],error:null}),
    download:async()=>({data:new Blob(['fixture document'],{type:'text/plain'}),error:null})
   })}
  };
+ db.push_subscriptions=[{id:'fixture-old-device',endpoint:'https://push.example.invalid/device',user_id:'previous-account'}];
  window.__PW_FIXTURE_DB=db;window.supabase={createClient:()=>client};
 })();

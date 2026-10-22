@@ -12,7 +12,13 @@ try{
  for(const [role,width,height]of [['office_scheduler',1440,1000],['technician',390,844],['installer',390,844]]){
   browser=await launch();const context=await browser.newContext({viewport:{width,height},locale:'it-IT',timezoneId:'Europe/Rome',serviceWorkers:'block'}),page=await context.newPage(),errors=[];
   page.on('pageerror',e=>errors.push(e.message));
-  await page.addInitScript(r=>{window.__PW_TEST_ROLE=r;try{localStorage.clear();sessionStorage.clear();}catch{}},role);
+  await page.addInitScript(r=>{
+   window.__PW_TEST_ROLE=r;try{localStorage.clear();sessionStorage.clear();}catch{}
+   const subscription={endpoint:'https://push.example.invalid/device',toJSON:()=>({endpoint:'https://push.example.invalid/device',keys:{p256dh:'fixture-public-key',auth:'fixture-auth'}}),unsubscribe:async()=>true};
+   const registration={scope:'/',active:{postMessage(){}},pushManager:{getSubscription:async()=>subscription}};
+   Object.defineProperty(navigator,'serviceWorker',{configurable:true,value:{ready:Promise.resolve(registration),getRegistration:async()=>registration,register:async()=>registration}});
+   Object.defineProperty(window,'Notification',{configurable:true,value:{permission:'granted'}});
+  },role);
   await page.route('**/supabase-js@2',route=>route.fulfill({path:path.join(__dirname,'mock-supabase.js'),contentType:'text/javascript'}));
   if(process.env.PW_TEST_VENDOR){
    await page.route('**/jspdf.umd.min.js',r=>r.fulfill({path:path.join(process.env.PW_TEST_VENDOR,'jspdf/dist/jspdf.umd.min.js'),contentType:'text/javascript'}));
@@ -54,6 +60,10 @@ try{
    await page.screenshot({path:path.join(results,'calendar-installer-mobile.png'),fullPage:true});
   }
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+1),true,'Page must not overflow horizontally');
+  await page.waitForFunction(()=>window.__PW_FIXTURE_DB.push_subscriptions?.length===1);
+  const binding=await page.evaluate(()=>window.__PW_FIXTURE_DB.push_subscriptions[0]);
+  assert.equal(binding.user_id,role==='technician'?'10000000-0000-4000-8000-000000000004':role==='installer'?'10000000-0000-4000-8000-000000000002':'10000000-0000-4000-8000-000000000001');
+  await page.evaluate(()=>PWPosaDetachPushBeforeLogout());assert.equal(await page.evaluate(()=>window.__PW_FIXTURE_DB.push_subscriptions.length),0);
   assert.deepEqual(errors,[],`Browser errors for ${role}`);reports.push({role,viewport:{width,height},status:'passed'});await context.close();await browser.close();
  }
  fs.writeFileSync(path.join(results,'browser-results.json'),JSON.stringify(reports,null,2));console.log(JSON.stringify(reports,null,2));

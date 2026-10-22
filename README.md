@@ -21,7 +21,7 @@ L'ufficio può scaricare un PDF riepilogativo oppure un fascicolo ZIP con il PDF
 
 ## Notifiche
 
-`notification-inbox.js` mostra lo storico personale e il conteggio delle notifiche non lette. I trigger generano titolo, riferimento e autore sul server, anche per le eliminazioni. L'avviso di fascicolo pronto non indica un autore. La coda `office_push_events` e la funzione `send-office-push` consegnano ora notifiche a tutti i ruoli interessati; i vecchi trigger push paralleli sono sostituiti per evitare duplicati.
+`notification-inbox.js` mostra lo storico personale e il conteggio delle notifiche non lette. I trigger generano titolo, riferimento e autore sul server, anche per le eliminazioni. L'avviso di fascicolo pronto non indica un autore. Il dispositivo push viene associato all'account che ha effettuato l'accesso e scollegato prima dell'uscita, anche quando più persone usano lo stesso browser. La coda `office_push_events` e la funzione `send-office-push` consegnano ora notifiche a tutti i ruoli interessati; i vecchi trigger push paralleli sono sostituiti per evitare duplicati.
 
 Il fascicolo posa viene segnalato pronto quando la posa è completata, i rapportini collegati sono archiviati come PDF e gli eventuali DDT sono firmati. Per le assistenze servono stato completato e PDF finale; per le attività tecniche è sufficiente lo stato Completata, poiché il testo del rapportino è facoltativo.
 

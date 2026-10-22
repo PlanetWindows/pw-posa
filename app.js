@@ -467,6 +467,8 @@
   }
 
   async function logout(){
+    try { await window.PWPosaDetachPushBeforeLogout?.(); }
+    catch(error){ toast("Uscita non completata: riprova per scollegare le notifiche da questo dispositivo."); return; }
     await sb.auth.signOut();
     location.reload();
   }

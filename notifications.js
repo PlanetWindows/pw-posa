@@ -7,6 +7,10 @@
   let button = null;
   let busy = false;
   let clearingBadge = false;
+  let pausedBinding = false;
+  let pendingBinding = null;
+  let boundUserId = null;
+  let boundEndpoint = null;
   const mobileQuery = window.matchMedia('(max-width: 900px)');
 
   function base64UrlToUint8Array(base64Url) {
@@ -47,6 +51,35 @@
       p_user_agent: navigator.userAgent
     });
     if (error) throw error;
+    boundUserId = user.id;
+    boundEndpoint = endpoint;
+  }
+
+  async function bindCurrentDevice(subscription, user) {
+    if (pausedBinding) return;
+    if (pendingBinding) await pendingBinding;
+    if (pausedBinding || (boundUserId === user.id && boundEndpoint === subscription.endpoint)) return;
+    const job = saveSubscription(subscription, user);
+    pendingBinding = job;
+    try { await job; }
+    finally { if (pendingBinding === job) pendingBinding = null; }
+  }
+
+  async function detachBeforeLogout() {
+    pausedBinding = true;
+    if (pendingBinding) await pendingBinding.catch(() => {});
+    const user = await currentUser();
+    if (!user || !('serviceWorker' in navigator)) return;
+    const registration = await navigator.serviceWorker.getRegistration?.();
+    const subscription = await registration?.pushManager?.getSubscription();
+    if (subscription) {
+      const { error } = await pushSb.from('push_subscriptions').delete().eq('user_id', user.id).eq('endpoint', subscription.endpoint);
+      // If the database is unreachable, invalidate the browser endpoint itself.
+      if (error && !(await subscription.unsubscribe())) throw error;
+    }
+    boundUserId = null;
+    boundEndpoint = null;
+    void clearAppBadge();
   }
 
   async function ensureSubscription() {
@@ -69,16 +102,21 @@
   }
 
   async function disableSubscription() {
+    pausedBinding = true;
+    if (pendingBinding) await pendingBinding.catch(() => {});
     const user = await currentUser();
     const registration = await getRegistration();
     const subscription = await registration.pushManager.getSubscription();
-    if (!subscription) { await clearAppBadge(); return; }
+    if (!subscription) { pausedBinding = false; await clearAppBadge(); return; }
     const endpoint = subscription.endpoint;
     if (user && endpoint) {
       const { error } = await pushSb.from('push_subscriptions').delete().eq('user_id', user.id).eq('endpoint', endpoint);
       if (error) throw error;
     }
     await subscription.unsubscribe();
+    boundUserId = null;
+    boundEndpoint = null;
+    pausedBinding = false;
     await clearAppBadge();
   }
 
@@ -130,7 +168,7 @@
   }
 
   async function refreshButton() {
-    if (!button) return;
+    if (!button || pausedBinding) return;
     placeButton();
     const user = await currentUser();
     if (!user) { button.classList.add('hidden'); return; }
@@ -138,6 +176,7 @@
     try {
       const registration = await getRegistration();
       const subscription = await registration.pushManager?.getSubscription();
+      if (subscription && Notification.permission === 'granted') await bindCurrentDevice(subscription, user);
       setButtonState(Notification.permission === 'granted' && !!subscription);
     } catch { setButtonState(false); }
   }
@@ -154,7 +193,7 @@
     } catch (error) {
       console.error('PW Posa push:', error);
       toast('Notifiche: ' + (error?.message || String(error)));
-    } finally { busy = false; button.disabled = false; }
+    } finally { pausedBinding = false; busy = false; button.disabled = false; }
   }
 
   function mountButton() {
@@ -165,6 +204,7 @@
   }
 
   window.PWPosaClearNotificationBadge = clearAppBadge;
+  window.PWPosaDetachPushBeforeLogout = detachBeforeLogout;
 
   window.addEventListener('load', () => {
     mountButton();
