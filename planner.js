@@ -15,7 +15,14 @@
   const minutes = value => {const [h,m]=String(value||'00:00').split(':').map(Number);return h*60+m;};
   const labels = {pose:'POSA',assistance:'ASSISTENZA',survey:'RILIEVO',site_visit:'CANTIERE',note:'NOTA / RICHIAMATA'};
   let mode = 'month';
-  let cursor = today(), filter = '', events = [], choices = [], generation = 0;
+  let cursor = today(), filter = '', events = [], choices = [], generation = 0, officeGroup = 'installation';
+  const currentGroup = () => window.PWPosa.isOffice() ? officeGroup : window.PWPosa.state.profile.role === 'technician' ? 'technical' : 'installation';
+  const belongsToGroup = kind => ['pose','assistance'].includes(kind) === (currentGroup() === 'installation');
+  async function selectGroup(group) {
+    if(!window.PWPosa.isOffice() || !['installation','technical'].includes(group))return;
+    if(officeGroup !== group){officeGroup=group;filter='';}
+    return render(false);
+  }
 
   function daysInView() {
     if(mode==='day') return [cursor];
@@ -69,7 +76,7 @@
     state.poses=poses;
     return all.sort((a,b)=>a.date.localeCompare(b.date)||a.start.localeCompare(b.start)||a.client.localeCompare(b.client,'it'));
   }
-  function selectedEvents() {return events.filter(e=>!filter||e.owner===filter);}
+  function selectedEvents() {return events.filter(e=>belongsToGroup(e.kind)&&(!filter||e.owner===filter));}
   function onDay(day) {return selectedEvents().filter(e=>e.date===day);}
   function attrs(e) {
     return e.kind==='pose'?`data-pose="${esc(e.id)}"`:e.kind==='assistance'?`data-assistance="${esc(e.id)}"`:`data-tech-activity="${esc(e.id)}"`;
@@ -113,8 +120,18 @@
       if(reload) {const rows=await readData();if(token!==generation||app.state.view!=='calendar')return;events=rows;}
       if(app.state.view!=='calendar')return;
       const days=daysInView(),range=mode==='month'?date(cursor).toLocaleDateString('it-IT',{month:'long',year:'numeric'}):mode==='day'?date(cursor).toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long',year:'numeric'}):`${date(days[0]).toLocaleDateString('it-IT',{day:'numeric',month:'short'})} – ${date(days.at(-1)).toLocaleDateString('it-IT',{day:'numeric',month:'short',year:'numeric'})}`;
-      const host=$('content');
-      host.innerHTML=`<section class="pw-planner" aria-label="Calendario attività"><div class="pw-planner-toolbar"><div class="pw-calendar-navigation"><button class="btn ghost" type="button" data-pw-step="-1" aria-label="Periodo precedente">←</button><button class="btn ghost" type="button" data-pw-today>Oggi</button><button class="btn ghost" type="button" data-pw-step="1" aria-label="Periodo successivo">→</button><h3>${esc(range)}</h3></div><div class="pw-planner-options"><label class="pw-date-label">Vai al <input type="date" id="pwCalendarDate" value="${cursor}"></label><div class="pw-view-switch" aria-label="Vista calendario">${[['month','Mese'],['week',`Settimana ${weekNumber(cursor)}`],['day','Giorno']].map(([v,l])=>`<button type="button" data-pw-mode="${v}" aria-pressed="${mode===v}" class="${mode===v?'active':''}">${l}</button>`).join('')}</div>${app.isOffice()?`<label class="pw-owner-label">Assegnazione<select id="pwCalendarOwner"><option value="">Tutte le attività</option>${choices.map(x=>`<option value="${esc(x.value)}"${filter===x.value?' selected':''}>${esc(x.label)}</option>`).join('')}</select></label>`:''}</div></div><div class="pw-calendar-legend">${Object.entries(labels).filter(([k])=>app.state.profile.role==='installer'?['pose','assistance'].includes(k):app.state.profile.role==='technician'?!['pose','assistance'].includes(k):true).map(([k,l])=>`<span><i class="pw-legend-${k}"></i>${l}</span>`).join('')}</div>${mode!=='month'?'<p class="pw-time-hint">Senza ora di fine, la durata del riquadro è indicativa.</p>':''}${mode==='month'?monthHtml(days):timeHtml(days)}</section>`;
+      const host=$('content'),group=currentGroup(),office=app.isOffice(),owners=choices.filter(x=>x.value.startsWith(group==='installation'?'team:':'technician:'));
+      host.innerHTML=`<section class="pw-planner" aria-label="Calendario attività">
+        ${office?`<div class="pw-calendar-kind-bar"><div class="pw-calendar-tabs" role="tablist" aria-label="Tipo di calendario">${[['installation','Pose e assistenze'],['technical','Rilievi, note e cantieri']].map(([value,label])=>`<button type="button" role="tab" id="pwCalendarTab-${value}" data-pw-group="${value}" aria-selected="${group===value}" aria-controls="pwCalendarPanel" tabindex="${group===value?0:-1}">${label}</button>`).join('')}</div>${group==='technical'&&app.isScheduler()?'<button type="button" class="btn ghost" data-pw-new-note>+ Nuova nota</button>':''}</div>`:''}
+        <div id="pwCalendarPanel"${office?` role="tabpanel" aria-labelledby="pwCalendarTab-${group}"`:''}>
+          <div class="pw-planner-toolbar"><div class="pw-calendar-navigation"><button class="btn ghost" type="button" data-pw-step="-1" aria-label="Periodo precedente">←</button><button class="btn ghost" type="button" data-pw-today>Oggi</button><button class="btn ghost" type="button" data-pw-step="1" aria-label="Periodo successivo">→</button><h3>${esc(range)}</h3></div><div class="pw-planner-options"><label class="pw-date-label">Vai al <input type="date" id="pwCalendarDate" value="${cursor}"></label><div class="pw-view-switch" aria-label="Vista calendario">${[['month','Mese'],['week',`Settimana ${weekNumber(cursor)}`],['day','Giorno']].map(([v,l])=>`<button type="button" data-pw-mode="${v}" aria-pressed="${mode===v}" class="${mode===v?'active':''}">${l}</button>`).join('')}</div>${office?`<label class="pw-owner-label">Assegnazione<select id="pwCalendarOwner"><option value="">${group==='installation'?'Tutte le squadre':'Tutti i tecnici'}</option>${owners.map(x=>`<option value="${esc(x.value)}"${filter===x.value?' selected':''}>${esc(x.label)}</option>`).join('')}</select></label>`:''}</div></div>
+          <div class="pw-calendar-legend">${Object.entries(labels).filter(([kind])=>belongsToGroup(kind)).map(([kind,label])=>`<span><i class="pw-legend-${kind}"></i>${label}</span>`).join('')}</div>${mode!=='month'?'<p class="pw-time-hint">Senza ora di fine, la durata del riquadro è indicativa.</p>':''}${mode==='month'?monthHtml(days):timeHtml(days)}
+        </div></section>`;
+      host.querySelectorAll('[data-pw-group]').forEach(button=>{
+        button.onclick=()=>selectGroup(button.dataset.pwGroup);
+        button.onkeydown=async e=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(e.key))return;e.preventDefault();const next=e.key==='Home'?'installation':e.key==='End'?'technical':group==='installation'?'technical':'installation';await selectGroup(next);host.querySelector(`[data-pw-group="${next}"]`).focus();};
+      });
+      if(host.querySelector('[data-pw-new-note]'))host.querySelector('[data-pw-new-note]').onclick=()=>window.PWTechnician.openNewNote();
       host.querySelectorAll('[data-pw-mode]').forEach(b=>b.onclick=()=>{mode=b.dataset.pwMode;render(false);});
       host.querySelectorAll('[data-pw-day]').forEach(b=>b.onclick=()=>{cursor=b.dataset.pwDay;mode='day';render(false);});
       host.querySelectorAll('[data-pw-step]').forEach(b=>b.onclick=()=>{const step=+b.dataset.pwStep;if(mode==='month'){const d=date(cursor);d.setDate(1);d.setMonth(d.getMonth()+step);cursor=iso(d);}else cursor=shift(cursor,step*(mode==='week'?7:1));render(false);});
@@ -127,5 +144,5 @@
       if(mode!=='month') {const scroller=host.querySelector('.pw-time-scroll');const startHour=Math.max(0,Math.min(7,...selectedEvents().filter(e=>days.includes(e.date)&&e.start).map(e=>Math.floor(minutes(e.start)/60))));scroller.scrollTop=Math.max(0,(7-startHour)*72);}
     } catch(error) {if(token===generation){$('content').innerHTML='<div class="panel"><p class="empty">Calendario non disponibile. <button type="button" class="btn ghost" id="pwCalendarRetry">Riprova</button></p></div>';$('pwCalendarRetry').onclick=()=>render();app.toast(error.message);}}
   }
-  window.PWPlanner={render,get selectedDay(){return cursor;},layout,expandRows};
+  window.PWPlanner={render,selectGroup,get selectedDay(){return cursor;},layout,expandRows};
 })();

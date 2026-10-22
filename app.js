@@ -500,7 +500,7 @@
   });
   $("logoutBtn").addEventListener("click",logout);
   $("topLogoutBtn").addEventListener("click",logout);
-  $("newPoseBtn").addEventListener("click",openNewPose);
+  $("newPoseBtn").addEventListener("click",async()=>{if(state.view==="calendar")await window.PWPlanner.selectGroup("installation");openNewPose();});
   $("newTechnicalBtn").addEventListener("click",()=>window.PWTechnician.openNew());
   $("editPoseBtn").addEventListener("click",openEditPose);
   $("poseForm").addEventListener("submit",savePose);
