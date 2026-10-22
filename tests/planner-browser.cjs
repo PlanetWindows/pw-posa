@@ -25,8 +25,18 @@ try{
    await page.route('**/jszip.min.js',r=>r.fulfill({path:path.join(process.env.PW_TEST_VENDOR,'jszip/dist/jszip.min.js'),contentType:'text/javascript'}));
   }
   await page.goto(origin,{waitUntil:'load',timeout:60000});await page.waitForSelector('.pw-planner');
+  assert.equal(await page.locator('[data-pw-mode="month"]').getAttribute('aria-pressed'),'true','Calendar must open in month view on every device');
+  for(const [day,week]of [['2026-10-22',43],['2026-10-26',44],['2021-01-01',53],['2021-01-04',1]]){
+   await page.locator('#pwCalendarDate').fill(day);await page.locator('#pwCalendarDate').dispatchEvent('change');
+   assert.equal(await page.locator('[data-pw-mode="week"]').innerText(),`Settimana ${week}`);
+  }
   await page.locator('#pwCalendarDate').fill('2026-10-21');await page.locator('#pwCalendarDate').dispatchEvent('change');
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+1),true,'Calendar must fit the viewport');
+  await page.screenshot({path:path.join(results,`calendar-month-${role}.png`),fullPage:true});
+  await page.locator('[data-pw-mode="week"]').click();
+  await page.locator('[data-pw-step="1"]').click();assert.equal(await page.locator('[data-pw-mode="week"]').innerText(),'Settimana 44');
+  await page.locator('[data-pw-step="-1"]').click();assert.equal(await page.locator('[data-pw-mode="week"]').innerText(),'Settimana 43');
+  await page.locator('[data-pw-mode="day"]').click();
   if(role==='office_scheduler'){
    await page.locator('[data-pw-mode="month"]').click();
    const day=page.locator('.pw-month-day').filter({has:page.locator('[data-pw-day="2026-10-21"]')});

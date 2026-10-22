@@ -6,10 +6,15 @@
   const date = value => new Date(`${value}T12:00:00`);
   const shift = (value, days) => {const d=date(value); d.setDate(d.getDate()+days); return iso(d);};
   const today = () => iso(new Date());
+  const weekNumber = value => {
+    const d = new Date(`${value}T00:00:00Z`);
+    d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+    return Math.ceil(((d - Date.UTC(d.getUTCFullYear(), 0, 1)) / 86400000 + 1) / 7);
+  };
   const hhmm = value => String(value || '').slice(0,5);
   const minutes = value => {const [h,m]=String(value||'00:00').split(':').map(Number);return h*60+m;};
   const labels = {pose:'POSA',assistance:'ASSISTENZA',survey:'RILIEVO',site_visit:'CANTIERE',note:'NOTA / RICHIAMATA'};
-  let mode = matchMedia('(max-width: 700px)').matches ? 'day' : 'week';
+  let mode = 'month';
   let cursor = today(), filter = '', events = [], choices = [], generation = 0;
 
   function daysInView() {
@@ -109,7 +114,7 @@
       if(app.state.view!=='calendar')return;
       const days=daysInView(),range=mode==='month'?date(cursor).toLocaleDateString('it-IT',{month:'long',year:'numeric'}):mode==='day'?date(cursor).toLocaleDateString('it-IT',{weekday:'long',day:'numeric',month:'long',year:'numeric'}):`${date(days[0]).toLocaleDateString('it-IT',{day:'numeric',month:'short'})} – ${date(days.at(-1)).toLocaleDateString('it-IT',{day:'numeric',month:'short',year:'numeric'})}`;
       const host=$('content');
-      host.innerHTML=`<section class="pw-planner" aria-label="Calendario attività"><div class="pw-planner-toolbar"><div class="pw-calendar-navigation"><button class="btn ghost" type="button" data-pw-step="-1" aria-label="Periodo precedente">←</button><button class="btn ghost" type="button" data-pw-today>Oggi</button><button class="btn ghost" type="button" data-pw-step="1" aria-label="Periodo successivo">→</button><h3>${esc(range)}</h3></div><div class="pw-planner-options"><label class="pw-date-label">Vai al <input type="date" id="pwCalendarDate" value="${cursor}"></label><div class="pw-view-switch" aria-label="Vista calendario">${[['month','Mese'],['week','Settimana'],['day','Giorno']].map(([v,l])=>`<button type="button" data-pw-mode="${v}" aria-pressed="${mode===v}" class="${mode===v?'active':''}">${l}</button>`).join('')}</div>${app.isOffice()?`<label class="pw-owner-label">Assegnazione<select id="pwCalendarOwner"><option value="">Tutte le attività</option>${choices.map(x=>`<option value="${esc(x.value)}"${filter===x.value?' selected':''}>${esc(x.label)}</option>`).join('')}</select></label>`:''}</div></div><div class="pw-calendar-legend">${Object.entries(labels).filter(([k])=>app.state.profile.role==='installer'?['pose','assistance'].includes(k):app.state.profile.role==='technician'?!['pose','assistance'].includes(k):true).map(([k,l])=>`<span><i class="pw-legend-${k}"></i>${l}</span>`).join('')}</div>${mode!=='month'?'<p class="pw-time-hint">Senza ora di fine, la durata del riquadro è indicativa.</p>':''}${mode==='month'?monthHtml(days):timeHtml(days)}</section>`;
+      host.innerHTML=`<section class="pw-planner" aria-label="Calendario attività"><div class="pw-planner-toolbar"><div class="pw-calendar-navigation"><button class="btn ghost" type="button" data-pw-step="-1" aria-label="Periodo precedente">←</button><button class="btn ghost" type="button" data-pw-today>Oggi</button><button class="btn ghost" type="button" data-pw-step="1" aria-label="Periodo successivo">→</button><h3>${esc(range)}</h3></div><div class="pw-planner-options"><label class="pw-date-label">Vai al <input type="date" id="pwCalendarDate" value="${cursor}"></label><div class="pw-view-switch" aria-label="Vista calendario">${[['month','Mese'],['week',`Settimana ${weekNumber(cursor)}`],['day','Giorno']].map(([v,l])=>`<button type="button" data-pw-mode="${v}" aria-pressed="${mode===v}" class="${mode===v?'active':''}">${l}</button>`).join('')}</div>${app.isOffice()?`<label class="pw-owner-label">Assegnazione<select id="pwCalendarOwner"><option value="">Tutte le attività</option>${choices.map(x=>`<option value="${esc(x.value)}"${filter===x.value?' selected':''}>${esc(x.label)}</option>`).join('')}</select></label>`:''}</div></div><div class="pw-calendar-legend">${Object.entries(labels).filter(([k])=>app.state.profile.role==='installer'?['pose','assistance'].includes(k):app.state.profile.role==='technician'?!['pose','assistance'].includes(k):true).map(([k,l])=>`<span><i class="pw-legend-${k}"></i>${l}</span>`).join('')}</div>${mode!=='month'?'<p class="pw-time-hint">Senza ora di fine, la durata del riquadro è indicativa.</p>':''}${mode==='month'?monthHtml(days):timeHtml(days)}</section>`;
       host.querySelectorAll('[data-pw-mode]').forEach(b=>b.onclick=()=>{mode=b.dataset.pwMode;render(false);});
       host.querySelectorAll('[data-pw-day]').forEach(b=>b.onclick=()=>{cursor=b.dataset.pwDay;mode='day';render(false);});
       host.querySelectorAll('[data-pw-step]').forEach(b=>b.onclick=()=>{const step=+b.dataset.pwStep;if(mode==='month'){const d=date(cursor);d.setDate(1);d.setMonth(d.getMonth()+step);cursor=iso(d);}else cursor=shift(cursor,step*(mode==='week'?7:1));render(false);});
