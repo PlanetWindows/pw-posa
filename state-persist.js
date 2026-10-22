@@ -15,7 +15,7 @@
     for(let i=0;i<40;i++){
       const app=document.getElementById('appView');
       if(app && !app.classList.contains('hidden')){
-        const btn=document.querySelector(`.nav-item[data-view="${CSS.escape(view)}"]:not(.hidden)`);
+        const btn=document.querySelector(`.nav:not(.hidden) .nav-item[data-view="${CSS.escape(view)}"]:not(.hidden)`);
         if(btn){ btn.click(); return; }
       }
       await new Promise(r=>setTimeout(r,100));

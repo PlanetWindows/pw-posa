@@ -31,7 +31,7 @@
   function roleName(role){
     return role === "office_scheduler" ? "Ufficio · Calendario" :
            role === "office_viewer" ? "Ufficio · Lettura" :
-           role === "installer" ? "Posatore" : role || "Utente";
+           role === "installer" ? "Posatore" : role === "technician" ? "Tecnico" : role || "Utente";
   }
   function isScheduler(){ return state.profile?.role === "office_scheduler"; }
   function isOffice(){ return ["office_scheduler","office_viewer"].includes(state.profile?.role); }
@@ -70,6 +70,7 @@
     const { data, error } = await sb.from("profiles").select("*").eq("id", uid).single();
     if(error) throw new Error("Profilo utente non disponibile: " + error.message);
     state.profile = data;
+    if(!data.active || !["office_scheduler","office_viewer","installer","technician"].includes(data.role)) throw new Error("Accesso non abilitato a PW Posa.");
   }
 
   async function bootApp(){
@@ -79,12 +80,15 @@
     $("roleLabel").textContent = roleName(state.profile.role);
 
     $("officeNav").classList.toggle("hidden", !isOffice());
-    $("installerNav").classList.toggle("hidden", isOffice());
+    $("installerNav").classList.toggle("hidden", state.profile.role !== "installer");
+    $("technicianNav").classList.toggle("hidden", state.profile.role !== "technician");
     $("newPoseBtn").classList.toggle("hidden", !isScheduler());
+    $("newTechnicalBtn").classList.toggle("hidden", !isScheduler() && state.profile.role !== "technician");
 
     if(isOffice()) await loadTeams();
     state.view = "calendar";
     await renderCalendar();
+    window.dispatchEvent(new CustomEvent("pw:ready"));
   }
 
   async function loadTeams(){
@@ -94,7 +98,16 @@
   }
 
   async function loadPoses(){
-    const { data, error } = await sb.from("poses").select("*").order("scheduled_date").order("start_time");
+    if(state.profile.role === "technician"){ state.poses=[]; return; }
+    let query = sb.from("poses").select("*").order("scheduled_date").order("start_time");
+    if(!isOffice()){
+      const membership = await sb.from("team_members").select("team_id").eq("user_id",state.session.user.id).eq("active",true);
+      if(membership.error) throw membership.error;
+      const ids = (membership.data||[]).map(x=>x.team_id);
+      if(!ids.length){ state.poses=[]; return; }
+      query = query.in("team_id",ids);
+    }
+    const { data, error } = await query;
     if(error) throw error;
     state.poses = data || [];
   }
@@ -116,6 +129,7 @@
   }
 
   async function renderCalendar(){
+    if(window.PWPlanner) return window.PWPlanner.render();
     $("pageTitle").textContent = "Calendario";
     await loadPoses();
     if(isOffice() && !state.teams.length) await loadTeams();
@@ -469,6 +483,9 @@
         else if(state.view==="myposes") await renderMyPoses();
         else if(state.view==="teams") await renderTeams();
         else if(state.view==="issues") await renderIssues();
+        else if(state.view==="technical") await window.PWTechnician.renderList("activities");
+        else if(state.view==="technical-notes") await window.PWTechnician.renderList("notes");
+        else if(state.view==="technical-archive") await window.PWTechnician.renderList("archive");
       }catch(err){ toast(err.message); }
     }
   });
@@ -482,12 +499,14 @@
   $("logoutBtn").addEventListener("click",logout);
   $("topLogoutBtn").addEventListener("click",logout);
   $("newPoseBtn").addEventListener("click",openNewPose);
+  $("newTechnicalBtn").addEventListener("click",()=>window.PWTechnician.openNew());
   $("editPoseBtn").addEventListener("click",openEditPose);
   $("poseForm").addEventListener("submit",savePose);
   $("closePoseDialog").addEventListener("click",()=>$("poseDialog").close());
   $("cancelPoseBtn").addEventListener("click",()=>$("poseDialog").close());
   $("closeDetailDialog").addEventListener("click",()=>$("detailDialog").close());
 
+  window.PWPosa = { sb, state, isOffice, isScheduler, toast, loadPoses, openPoseDetail, renderCalendar };
   (async ()=>{
     const {data}=await sb.auth.getSession();
     if(data.session){
