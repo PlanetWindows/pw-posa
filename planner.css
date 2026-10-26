@@ -6,3 +6,40 @@
 @media(max-width:700px){.pw-calendar-kind-bar{padding:4px 12px 0;gap:6px}.pw-calendar-tabs{width:100%;gap:0}.pw-calendar-tabs button{flex:1;padding:12px 7px;font-size:12px}}
 @media(max-width:900px){.app-shell,.main,.sidebar{min-width:0;max-width:100%;box-sizing:border-box}.sidebar .nav{max-width:100%;box-sizing:border-box}.topbar{flex-wrap:wrap;align-items:flex-start}.topbar-actions{width:100%;justify-content:flex-start;gap:8px}.topbar-actions .btn{max-width:100%}.pw-planner{max-width:100%}}
 @media(max-width:700px){.pw-planner-toolbar{padding:12px}.pw-calendar-navigation h3{font-size:14px;flex-basis:100%;margin:6px 0}.pw-planner-options{width:100%}.pw-owner-label{width:100%;justify-content:space-between}.pw-time-grid{grid-template-columns:48px repeat(var(--pw-days),minmax(150px,1fr));min-width:calc(48px + var(--pw-days)*150px)}.pw-time-scroll{max-height:65vh}.pw-tech-body{padding:0 16px 16px}.pw-tech-list-toolbar{flex-wrap:wrap}.pw-tech-list-toolbar input{min-width:200px}.pw-tech-list-item{align-items:start}.pw-inbox-toggle{font-size:11px!important;padding:8px!important}.topbar-actions .btn{font-size:11px;padding:8px 10px}.pw-tech-actions{position:sticky;bottom:0;background:#fff;z-index:2}.pw-tech-dialog .grid2{grid-template-columns:1fr}.pw-tech-dialog .span2{grid-column:auto}.pw-date-label input{max-width:150px}}
+
+/* PW Posa: mobile month, readable previews with no horizontal scrolling */
+.pw-mobile-preview{display:none}
+@media(max-width:700px){
+ .pw-month-grid{grid-template-rows:28px repeat(var(--pw-weeks),minmax(94px,auto));min-width:0;width:100%}
+ .pw-month-day{align-items:stretch;min-width:0;padding:3px 2px;gap:3px}
+ .pw-month-day .pw-day-number{margin:0 auto;flex-shrink:0}
+ .pw-month-summary{display:none}
+ .pw-mobile-preview{display:flex;flex-direction:column;gap:3px;min-width:0;width:100%;align-items:stretch}
+ .pw-mobile-item{display:block;box-sizing:border-box;width:100%;max-width:100%;min-width:0;border:0;border-left:3px solid #259a5a;border-radius:3px;background:#e9f5ed;padding:4px 2px;text-align:left;font-family:inherit;color:#233529;font-weight:600;font-size:clamp(7px,1.65vw,10px);line-height:1.25;cursor:pointer}
+ .pw-mobile-item span{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere;word-break:normal}
+ .pw-mobile-assistance{border-left-color:#d53636;background:#fff0f0;color:#713030}
+ .pw-mobile-survey{border-left-color:#2482ce;background:#edf6ff}
+ .pw-mobile-site_visit{border-left-color:#d4a800;background:#fff9d9}
+ .pw-mobile-note{border-left-color:#cf3198;background:#fff0fa}
+ .pw-mobile-more{background:none;border:0;padding:1px;color:#795726;font:inherit;font-size:10px;font-weight:700;cursor:pointer;text-align:center}
+ .pw-month-day .pw-mobile-item:focus-visible,.pw-mobile-more:focus-visible{outline:2px solid #b08b4b}
+}
+
+/* Vista mese mobile condivisa: ufficio, tecnico e posatori, entrambe le schede. */
+@media(max-width:700px){
+ .pw-planner,.pw-month-scroll,.pw-month-grid{max-width:100%;overflow-x:clip}
+ .pw-month-grid{grid-template-rows:28px repeat(var(--pw-weeks),minmax(104px,auto))}
+ .pw-month-day{gap:4px;padding:3px 2px;overflow:hidden}
+ .pw-mobile-preview{gap:3px}
+ .pw-mobile-item{padding:3px 2px;min-height:27px;font-size:clamp(8px,1.85vw,11px);line-height:1.15}
+ .pw-mobile-item small{display:block;font-size:8px;line-height:1.1;opacity:.75;font-weight:700}
+ .pw-mobile-item span{display:-webkit-box;-webkit-line-clamp:2;line-clamp:2;overflow:hidden;overflow-wrap:anywhere}
+ .pw-mobile-more{min-height:21px;font-size:10px}
+ .pw-calendar-tabs button{white-space:normal;line-height:1.25;min-width:0}
+ .pw-planner-options,.pw-calendar-navigation{min-width:0;max-width:100%}
+ .pw-month-hint{line-height:1.4}
+}
+@media(max-width:370px){
+ .pw-mobile-item{font-size:8px;padding:3px 1px}
+ .pw-month-day{padding:3px 1px}
+}
