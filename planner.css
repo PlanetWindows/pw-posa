@@ -43,3 +43,9 @@
  .pw-mobile-item{font-size:8px;padding:3px 1px}
  .pw-month-day{padding:3px 1px}
 }
+
+/* Pulsante + sempre presente per aprire la giornata su smartphone. */
+@media(max-width:700px){
+ .pw-mobile-more{display:flex;align-items:center;justify-content:center;align-self:center;min-width:26px;min-height:26px;max-width:100%;padding:2px 5px;border:1px solid #d9c5a0;border-radius:7px;background:#f7edda;color:#77541e;font-size:14px;line-height:1;font-weight:700;cursor:pointer;touch-action:manipulation}
+ .pw-mobile-more:active{background:#e9d8b7}
+}
