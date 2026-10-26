@@ -7,6 +7,17 @@ const root=path.resolve(__dirname,'..'),results=path.join(root,'test-results');f
 const types={'.js':'text/javascript','.css':'text/css','.html':'text/html','.svg':'image/svg+xml','.png':'image/png','.webmanifest':'application/manifest+json'};
 const server=http.createServer((req,res)=>{const rel=decodeURIComponent(new URL(req.url,'http://localhost').pathname),p=path.resolve(root,'.'+(rel==='/'?'/index.html':rel));if(!p.startsWith(root+path.sep)&&p!==root){res.writeHead(403);return res.end();}fs.readFile(p,(err,data)=>{if(err){res.writeHead(404);res.end();}else{res.setHeader('Content-Type',types[path.extname(p)]||'application/octet-stream');res.end(data);}});});
 const reports=[];
+async function assertMobileMonthFits(page){
+ const dimensions=await page.locator('.pw-month-scroll').evaluate(el=>{
+  const grid=el.querySelector('.pw-month-grid'),bounds=el.getBoundingClientRect();
+  return {width:el.clientWidth,scrollWidth:el.scrollWidth,gridWidth:grid.getBoundingClientRect().width,height:grid.getBoundingClientRect().height,viewportHeight:innerHeight,days:grid.querySelectorAll('.pw-month-day').length,weekdays:[...grid.querySelectorAll('.pw-weekday')].map(day=>{const r=day.getBoundingClientRect();return r.left>=bounds.left-1&&r.right<=bounds.right+1;})};
+ });
+ assert(dimensions.scrollWidth<=dimensions.width+1,'Month must fit without a horizontal scrollbar');
+ assert(dimensions.gridWidth<=dimensions.width+1,'Calendar must shrink to the phone width');
+ assert.equal(dimensions.weekdays.length,7);assert(dimensions.weekdays.every(Boolean),'All seven weekday columns must be visible together');
+ assert(dimensions.height<=dimensions.viewportHeight,'The complete month must fit within one screen height');
+ return dimensions;
+}
 (async()=>{await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin=`http://127.0.0.1:${server.address().port}`;const bundled=process.env.PW_CHROMIUM_MODULE?(await import(process.env.PW_CHROMIUM_MODULE)).default:null;let browser;const launch=()=>chromium.launch({headless:true,executablePath:bundled?'/tmp/chromium':undefined,args:bundled?bundled.args:['--no-sandbox']});
 try{
  for(const [role,width,height]of [['office_scheduler',1440,1000],['technician',390,844],['installer',390,844]]){
@@ -32,6 +43,14 @@ try{
   }
   await page.locator('#pwCalendarDate').fill('2026-10-21');await page.locator('#pwCalendarDate').dispatchEvent('change');
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+1),true,'Calendar must fit the viewport');
+  if(width<=700){
+   for(const phoneWidth of [320,360,390,430]){await page.setViewportSize({width:phoneWidth,height:740});await assertMobileMonthFits(page);}
+   await page.locator('#pwCalendarDate').fill('2026-08-15');await page.locator('#pwCalendarDate').dispatchEvent('change');assert.equal((await assertMobileMonthFits(page)).days,42,'Six-week months must fit too');
+   await page.setViewportSize({width,height});await page.locator('#pwCalendarDate').fill('2026-10-21');await page.locator('#pwCalendarDate').dispatchEvent('change');
+   const summary=page.locator('.pw-month-summary[data-pw-day="2026-10-21"]');assert.equal(await summary.isVisible(),true);assert.match(await summary.innerText(),role==='installer'?/\+5/:/\+2/);
+   await summary.click();assert.equal(await page.locator('[data-pw-mode="day"]').getAttribute('aria-pressed'),'true');assert.equal(await page.locator('.pw-time-column .pw-event').count(),role==='installer'?5:2);
+   await page.locator('[data-pw-mode="month"]').click();
+  }
   await page.screenshot({path:path.join(results,`calendar-month-${role}.png`),fullPage:true});
   await page.locator('[data-pw-mode="week"]').click();
   await page.locator('[data-pw-step="1"]').click();assert.equal(await page.locator('[data-pw-mode="week"]').innerText(),'Settimana 44');
@@ -57,6 +76,7 @@ try{
    await page.locator('[data-pw-group="installation"]').press('ArrowRight');assert.equal(await page.locator('.pw-time-column .pw-event').count(),2);
    await page.locator('[data-pw-mode="month"]').click();await page.setViewportSize({width:390,height:844});
    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth+1),true,'Office tabs must fit on a phone');
+   await assertMobileMonthFits(page);await page.locator('.pw-month-summary[data-pw-day="2026-10-21"]').click();assert.equal(await page.locator('.pw-time-column .pw-event').count(),2);await page.locator('[data-pw-mode="month"]').click();
    await page.screenshot({path:path.join(results,'calendar-office-tabs-mobile.png'),fullPage:true});await page.setViewportSize({width,height});
    await page.locator('[data-pw-new-note]').click();assert.equal(await page.locator('#technicalDialog input[id*="ommesse"]').count(),0);
    assert.equal(await page.locator('#technicalFirstLabel').innerText(),'Nome / società *');

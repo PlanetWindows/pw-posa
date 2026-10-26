@@ -88,9 +88,9 @@
   }
   function monthHtml(days) {
     const month=date(cursor).getMonth();
-    return `<div class="pw-month-scroll"><div class="pw-month-grid">${['Lun','Mar','Mer','Gio','Ven','Sab','Dom'].map(d=>`<div class="pw-weekday">${d}</div>`).join('')}${days.map(day=>{
+    return `<p class="pw-month-hint">Tocca un giorno per vedere orari e attività.</p><div class="pw-month-scroll"><div class="pw-month-grid" style="--pw-weeks:${days.length/7}">${['Lun','Mar','Mer','Gio','Ven','Sab','Dom'].map(d=>`<div class="pw-weekday">${d}</div>`).join('')}${days.map(day=>{
       const items=onDay(day);
-      return `<section class="pw-month-day${date(day).getMonth()!==month?' pw-outside':''}${day===today()?' pw-today':''}"><button type="button" class="pw-day-number" data-pw-day="${day}" aria-label="Apri la giornata del ${esc(date(day).toLocaleDateString('it-IT'))}">${date(day).getDate()}</button><div class="pw-month-events">${items.slice(0,2).map(e=>chip(e)).join('')}${items.length>2?`<button type="button" class="pw-more" data-pw-day="${day}">+${items.length-2} altre attività</button>`:''}${!items.length?'<span class="muted">—</span>':''}</div></section>`;
+      return `<section class="pw-month-day${date(day).getMonth()!==month?' pw-outside':''}${day===today()?' pw-today':''}"><button type="button" class="pw-day-number" data-pw-day="${day}" aria-label="Apri la giornata del ${esc(date(day).toLocaleDateString('it-IT'))}">${date(day).getDate()}</button>${items.length?`<button type="button" class="pw-month-summary" data-pw-day="${day}" aria-label="${items.length} attività il ${esc(date(day).toLocaleDateString('it-IT'))}: apri la giornata"><span class="pw-month-dots" aria-hidden="true">${[...new Set(items.map(e=>e.kind))].map(kind=>`<i class="pw-legend-${kind}"></i>`).join('')}</span><span aria-hidden="true">${items.length>1?'+':''}${items.length}</span></button>`:''}<div class="pw-month-events">${items.slice(0,2).map(e=>chip(e)).join('')}${items.length>2?`<button type="button" class="pw-more" data-pw-day="${day}">+${items.length-2} altre attività</button>`:''}${!items.length?'<span class="muted">—</span>':''}</div></section>`;
     }).join('')}</div></div>`;
   }
   /* Interval partitioning uses the visible height too, so short cards cannot overlap. */
