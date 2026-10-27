@@ -15,7 +15,7 @@ La separazione è applicata sia nell'interfaccia sia attraverso le policy del da
 
 `planner.js` gestisce le viste Mese, Settimana e Giorno. La vista mensile mostra due attività e il pulsante per aprire l'intera giornata. Le viste orarie affiancano gli appuntamenti contemporanei. Le giornate non consecutive vengono lette da `pose_dates` e `assistance_dates`.
 
-`technician.js` gestisce i dati del cliente senza numero di commessa: nome, cognome, via, provincia, CAP, data e ora. I rilievi sono blu, le uscite in cantiere gialle, le note/richiamate fucsia. Nelle richiamate la data della telefonata resta distinta dallo stato Da fare/Completata e può essere modificata solo dall'ufficio. Il rapportino e gli allegati sono facoltativi.
+`technician.js` gestisce i dati del cliente senza numero di commessa: nome, cognome, via, città, provincia, CAP, data e ora. I rilievi sono blu, le uscite in cantiere gialle, le note/richiamate fucsia. Nelle richiamate la data della telefonata resta distinta dallo stato Da fare/Completata e può essere modificata solo dall'ufficio. Il rapportino e gli allegati sono facoltativi.
 
 L'ufficio può scaricare un PDF riepilogativo oppure un fascicolo ZIP con il PDF e tutti gli allegati privati.
 
