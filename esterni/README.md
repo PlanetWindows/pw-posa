@@ -4,7 +4,7 @@ Applicazione riservata a Ufficio PW Posa e posatori esterni abilitati. Condivide
 
 ## Primo utilizzo
 
-Accedere con le credenziali dell’ufficio di PW Posa. Da **Posatori → Nuovo posatore** inserire nome, azienda, email e telefono. Conservare e comunicare al posatore la password provvisoria mostrata una sola volta. Non viene inviata alcuna email automatica di creazione dell’account.
+Accedere con le credenziali dell’ufficio di PW Posa. Da **Posatori → Nuovo posatore** inserire nome, azienda, email e telefono. Conservare e comunicare al posatore la password provvisoria mostrata una sola volta. Non viene inviata alcuna email automatica di creazione dell’account. Dopo l’accesso, il posatore può scegliere una password personale da **Account → Cambia password**, inserendo la password attuale e due volte quella nuova (da 12 a 72 caratteri). La password attuale viene verificata da Auth prima del cambio; password e conferma non vengono salvate nelle anagrafiche.
 
 Da **Nuova richiesta** selezionare il posatore, compilare indirizzo, piano, lavoro, prezzo e giornate. Si possono allegare più PDF. Le giornate non consecutive si ottengono togliendo la selezione alle date da escludere.
 

@@ -13,3 +13,5 @@
 .notification .dot.confirmed{background:var(--gold)}
 
 .login-area,.login-brand,.login-card{min-width:0}@media(max-width:760px){.login-shell{grid-template-columns:minmax(0,1fr)}.login-area{width:100%}.login-card{width:100%;max-width:390px}}
+
+.account-panel{max-width:740px}.account-panel h2{font-size:21px;font-weight:500}.account-panel .detail-grid{grid-template-columns:1fr 1fr;padding-top:8px}.password-fields{display:grid;gap:16px;max-width:520px}.password-fields .hint{margin:-7px 0 0}
