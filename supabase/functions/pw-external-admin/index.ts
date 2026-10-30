@@ -21,10 +21,19 @@ Deno.serve(async(req:Request)=>{
   const name=String(body.full_name||'').trim(),email=String(body.email||'').trim().toLowerCase(),password=String(body.password||'');
   if(!name||name.length>150||!/^\S+@\S+\.\S+$/.test(email)||password.length<14||password.length>128)return reply({error:'Nome, email o password non validi'},400);
   const created=await admin.auth.admin.createUser({email,password,email_confirm:true,user_metadata:{full_name:name}});
-  if(created.error)return reply({error:'Creazione non riuscita: verifica che l’email non sia già utilizzata.'},409);
+  if(created.error){
+   console.error('PW Esterni: creazione accesso',{stage:'auth_create',code:created.error.code,status:created.error.status,message:created.error.message});
+   const duplicate=['email_exists','user_already_exists'].includes(created.error.code||'');
+   return reply({error:duplicate?'Questa email è già utilizzata per un account.':'Non è stato possibile creare l’accesso. Riprova.'},duplicate?409:500);
+  }
   const userId=created.data.user.id;
   const provision=await admin.rpc('pw_external_provision',{p_user:userId,p_name:name,p_company:String(body.company||'').slice(0,200),p_email:email,p_phone:String(body.phone||'').slice(0,60),p_notes:String(body.notes||'').slice(0,5000)});
-  if(provision.error){const cleanup=await admin.auth.admin.deleteUser(userId);if(cleanup.error)console.error('PW Esterni: rimozione utenza non completata',userId);throw provision.error;}
+  if(provision.error){
+   console.error('PW Esterni: collegamento posatore',{stage:'installer_provision',code:provision.error.code,message:provision.error.message,hint:provision.error.hint});
+   const cleanup=await admin.auth.admin.deleteUser(userId);
+   if(cleanup.error)console.error('PW Esterni: rimozione utenza non completata',{code:cleanup.error.code,status:cleanup.error.status});
+   return reply({error:'Non è stato possibile completare l’anagrafica del posatore. Riprova.'},500);
+  }
   return reply({ok:true,installer_id:provision.data});
  }catch(error){if(error instanceof DeletionError)return reply({error:error.message},error.status);console.error('PW Esterni: creazione posatore non riuscita',error instanceof Error?error.message:'errore');return reply({error:'Creazione del posatore non riuscita. Riprova.'},500);}
 });

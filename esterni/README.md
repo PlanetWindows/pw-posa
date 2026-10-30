@@ -35,3 +35,9 @@ Da Posatori, l’ufficio può premere Elimina oppure Modifica → Elimina posato
 La procedura revoca subito i permessi del profilo e le notifiche del dispositivo. Usa Auth Admin per eliminare le credenziali e le sessioni, conservando i riferimenti necessari allo storico. I file privati vengono mantenuti e la loro proprietà passa all’ufficio. Se la connessione si interrompe, l’accesso rimane bloccato e compare Completa eliminazione, che permette di riprendere senza duplicazioni.
 
 `tests/external-installer-delete.sql` verifica autorizzazione, revoca accessi e conservazione dello storico con rollback. `node tests/external-installer-delete.mjs` verifica il flusso Auth e i tentativi successivi a un’interruzione.
+
+## Posatori della stessa azienda
+
+La creazione e la modifica gestiscono anche più posatori con la stessa azienda o lo stesso nome, inclusi account ricreati dopo l’eliminazione. Ogni nuovo accesso riceve una squadra distinta: i nomi già occupati vengono differenziati senza riutilizzare squadre storiche o assegnare al nuovo account vecchi incarichi.
+
+`tests/external-installer-provision.sql` verifica la creazione con privilegi service_role, le collisioni con squadre archiviate e le modifiche dall’ufficio. `node tests/external-admin-errors.cjs` verifica che gli errori della creazione mostrino la causa restituita dal server.
