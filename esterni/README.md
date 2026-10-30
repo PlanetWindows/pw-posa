@@ -18,6 +18,10 @@ L’ufficio esporta il fascicolo ZIP dal riepilogo in entrambe le app. Contiene 
 
 ## Notifiche e installazione
 
+PW Posa e PW Posa Esterni si installano separatamente. La principale si apre da `https://planetwindows.github.io/pw-posa/`, Esterni da `https://planetwindows.github.io/pw-posa/esterni/`. In Chrome, aprire ciascun indirizzo in una scheda normale e usare Installa questa pagina come app; poi fissare ciascuna finestra alla barra delle applicazioni. La principale mantiene l’identità e l’icona esistenti, Esterni usa l’icona dei posatori e l’identità `/pw-posa/esterni/`.
+
+Il manifest ID si risolve contro l’origine dello start URL, non contro la cartella del manifest: `id: "./"` in entrambe le app le identificava come una sola. Non ripristinare questo ID in Esterni e non cambiare quello della principale, per conservare i collegamenti già installati. Il controllo `node tests/external-app-identity.cjs` verifica gli indirizzi effettivi, gli ID distinti e il mantenimento delle icone.
+
 Premere **Attiva notifiche** su ciascun dispositivo. Su iPhone aprire da Safari, aggiungere alla schermata Home e avviare dall’icona. Gli avvisi sono creati sul server per l’altra parte e per gli altri uffici abilitati; l’autore non riceve il proprio avviso. Le impostazioni e i permessi del dispositivo possono impedirne la visualizzazione.
 
 Le notifiche nell’app funzionano anche senza permesso push. La funzione esistente `send-office-push` consegna le nuove notifiche usando la stessa coda, senza cambiare i destinatari delle attività esistenti. Uscendo dall’app, il dispositivo viene scollegato dall’account.
