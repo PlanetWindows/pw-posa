@@ -38,3 +38,10 @@ La funzione `pw-posa-admin` autentica autonomamente un utente Ufficio Calendario
 - `tests/mock-supabase.js` è una fixture locale per il browser e non viene caricata dall'app.
 
 Le prove del browser richiedono Playwright e Chromium. `PW_TEST_VENDOR` può indicare una directory di moduli con le stesse versioni jsPDF e JSZip usate in `index.html`, per verificare le esportazioni senza dipendere dalla CDN. Nessuna prova deve contenere credenziali o dati reali dei clienti.
+
+
+## PW Posa Esterni
+
+`esterni/` contiene l’app dei posatori esterni. Ufficio e posatori accedono con Supabase; le richieste confermate creano una sola posa collegata e le date in `pose_dates`. Nel calendario PW Posa sono arancioni e indicano Confermata. Il riepilogo apre lo stesso incarico, con rapportini, foto multiple prima e dopo, collaudo e fascicolo ZIP. La guida operativa è in `esterni/README.md`.
+
+La migrazione `20261030091202_pw_posa_esterni.sql` e la funzione `pw-external-admin` precedono la pubblicazione statica. `tests/external-workflow.sql` verifica transazioni, controproposte, permessi e notifiche con rollback; `node tests/external-export.cjs` verifica i PDF, le foto multiple e l’interruzione di esportazioni parziali.

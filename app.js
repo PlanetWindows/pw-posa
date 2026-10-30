@@ -354,6 +354,7 @@
       if(error) return toast(error.message);
       p = data;
     }
+    if(p.external_request_id && window.PWExternalBridge) return window.PWExternalBridge.openRequest(p.external_request_id);
     state.selectedPose = p;
     $("detailTitle").textContent = `${p.job_number} · ${p.client_name}`;
     $("editPoseBtn").classList.toggle("hidden", !isScheduler());
@@ -467,7 +468,7 @@
   }
 
   async function logout(){
-    try { await window.PWPosaDetachPushBeforeLogout?.(); }
+    try { await window.PWExternalBridge?.detachPush(); await window.PWPosaDetachPushBeforeLogout?.(); }
     catch(error){ toast("Uscita non completata: riprova per scollegare le notifiche da questo dispositivo."); return; }
     await sb.auth.signOut();
     location.reload();
@@ -475,7 +476,7 @@
 
   document.addEventListener("click", async (e)=>{
     const nav=e.target.closest(".nav-item");
-    if(nav){
+    if(nav && nav.dataset.view){
       document.querySelectorAll(".nav-item").forEach(x=>x.classList.remove("active"));
       nav.classList.add("active");
       state.view=nav.dataset.view;
@@ -518,3 +519,4 @@
     }
   })();
 })();
+

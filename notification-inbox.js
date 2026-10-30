@@ -29,7 +29,8 @@
       await refresh();if(n.event_action==='deleted')return;
       const kind=n.entity_type||(n.pose_id?'pose':null),id=n.entity_id||n.pose_id;if(!id)return;
       $('pwInbox').close();
-      if(kind==='technical')await window.PWTechnician.openDetail(id);
+      if(kind==='external_pose')window.PWExternalBridge.openRequest(id);
+      else if(kind==='technical')await window.PWTechnician.openDetail(id);
       else if(kind==='pose')await app.openPoseDetail(id);
       else if(kind==='assistance') {const button=document.createElement('button');button.dataset.assistance=id;button.hidden=true;document.body.appendChild(button);button.click();button.remove();}
     }catch(e){app.toast(e.message);}
@@ -46,3 +47,4 @@
   }
   window.addEventListener('pw:ready',connect);window.addEventListener('pw:activity-saved',refresh);window.addEventListener('load',()=>{if(window.PWPosa?.state.session)connect();});document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')refresh();});
 })();
+

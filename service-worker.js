@@ -1,8 +1,8 @@
-const CACHE_NAME = 'pw-posa-shell-v38';
+const CACHE_NAME = 'pw-posa-shell-v38-external1';
 const BADGE_STATE_CACHE = 'pw-posa-badge-state-v1';
 const BADGE_STATE_URL = new URL('./__pw_posa_badge_count__', self.location.href).href;
 const APP_SHELL = [
-  './', './index.html', './planner.js', './planner.css', './technician.js', './notification-inbox.js', './app.js', './manifest.webmanifest', './styles.css', './enhancements.css', './hotfix.css',
+  './', './index.html', './externals-bridge.js', './externals-bridge.css', './planner.js', './planner.css', './technician.js', './notification-inbox.js', './app.js', './manifest.webmanifest', './styles.css', './enhancements.css', './hotfix.css',
   './assistance.css', './assistance-save-archive-calendar-fix.css', './assistance.js', './assistance-installer-photos.js',
   './assistance-validation-fix.js', './assistance-team-fix.js', './assistance-close-flow-v4.js', './assistance-optional-ddt-fix.js', './calendar-assistance-render.js',
   './ddt.css', './ddt.js', './ddt-bootstrap.js', './ddt-pose-save.js', './pose-close-flow.js', './smooth-session-state.js',
@@ -10,9 +10,9 @@ const APP_SHELL = [
   './icon-1024-v2.png', './icon-maskable-512-v2.png', './apple-touch-icon-v2.png'
 ];
 self.addEventListener('install', event => { event.waitUntil(caches.open(CACHE_NAME).then(cache => cache.addAll(APP_SHELL)).then(() => self.skipWaiting())); });
-self.addEventListener('activate', event => { event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => ![CACHE_NAME,BADGE_STATE_CACHE].includes(key)).map(key => caches.delete(key)))).then(() => self.clients.claim())); });
+self.addEventListener('activate', event => { event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key.startsWith('pw-posa-shell-') && key!==CACHE_NAME).map(key => caches.delete(key)))).then(() => self.clients.claim())); });
 self.addEventListener('fetch', event => {
-  const request=event.request; if(request.method!=='GET')return; const url=new URL(request.url); if(url.origin!==self.location.origin)return;
+  const request=event.request; if(request.method!=='GET')return; const url=new URL(request.url); if(url.origin!==self.location.origin)return; if(url.pathname.startsWith(new URL('./esterni/',self.registration.scope).pathname))return;
   if(request.mode==='navigate'){
     event.respondWith(fetch(request,{cache:'no-store'}).then(response=>{const copy=response.clone();caches.open(CACHE_NAME).then(cache=>cache.put('./index.html',copy));return response}).catch(()=>caches.match('./index.html'))); return;
   }
@@ -27,3 +27,4 @@ self.addEventListener('message',event=>{if(event.data?.type==='PW_POSA_CLEAR_BAD
 async function readBadgeCount(){try{const cache=await caches.open(BADGE_STATE_CACHE),response=await cache.match(BADGE_STATE_URL);if(!response)return 0;const value=Number(await response.text());return Number.isFinite(value)&&value>0?Math.floor(value):0}catch{return 0}}
 async function writeBadgeCount(count){const safeCount=Number.isFinite(Number(count))?Math.max(0,Math.floor(Number(count))):0;try{const cache=await caches.open(BADGE_STATE_CACHE);await cache.put(BADGE_STATE_URL,new Response(String(safeCount),{headers:{'Content-Type':'text/plain'}}))}catch(error){console.warn('PW Posa: conteggio badge non salvato',error)}}
 async function clearStoredBadge(){await writeBadgeCount(0);try{if('clearAppBadge'in self.navigator)await self.navigator.clearAppBadge();else if('setAppBadge'in self.navigator)await self.navigator.setAppBadge(0)}catch(error){console.warn('PW Posa: badge non rimosso',error)}}
+
