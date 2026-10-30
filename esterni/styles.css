@@ -11,3 +11,5 @@
 .tag.account-active{background:#f0e9dc;color:#75603d}.delete-copy{font-size:13px;line-height:1.85}.delete-name{font-size:16px;font-weight:500;margin-bottom:14px}.installer-delete{margin-right:auto}
 
 .notification .dot.confirmed{background:var(--gold)}
+
+.login-area,.login-brand,.login-card{min-width:0}@media(max-width:760px){.login-shell{grid-template-columns:minmax(0,1fr)}.login-area{width:100%}.login-card{width:100%;max-width:390px}}
