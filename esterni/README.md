@@ -27,3 +27,11 @@ Le notifiche nell’app funzionano anche senza permesso push. La funzione esiste
 Tutti i dati operativi sono su Supabase. Non sono presenti chiavi privilegiate nel client. Le nuove tabelle hanno RLS; ciascun posatore vede solo i propri incarichi. I file usano il bucket privato `pw-external-private`. I link agli allegati scadono. Prezzi, assegnazioni e conferme si modificano soltanto con funzioni server autorizzate e controllo di versione. Gli account vengono creati dalla Edge Function `pw-external-admin`, riservata all’ufficio. Le richieste accettate non si modificano dal vecchio editor di PW Posa per evitare divergenze.
 
 La migrazione `20261030091202_pw_posa_esterni.sql` e la funzione `pw-external-admin` devono essere applicate prima della pubblicazione dei file. Il test `tests/external-workflow.sql` usa dati sintetici e annulla tutta la transazione.
+
+## Eliminazione dei posatori
+
+Da Posatori, l’ufficio può premere Elimina oppure Modifica → Elimina posatore. La conferma richiede di scrivere il nome completo. L’accesso Auth viene eliminato in modo irreversibile e il posatore sparisce dall’elenco; il suo riferimento storico resta per conservare incarichi, date confermate, fotografie e fascicoli dell’ufficio. La disattivazione resta invece reversibile.
+
+La procedura revoca subito i permessi del profilo e le notifiche del dispositivo. Usa Auth Admin per eliminare le credenziali e le sessioni, conservando i riferimenti necessari allo storico. I file privati vengono mantenuti e la loro proprietà passa all’ufficio. Se la connessione si interrompe, l’accesso rimane bloccato e compare Completa eliminazione, che permette di riprendere senza duplicazioni.
+
+`tests/external-installer-delete.sql` verifica autorizzazione, revoca accessi e conservazione dello storico con rollback. `node tests/external-installer-delete.mjs` verifica il flusso Auth e i tentativi successivi a un’interruzione.

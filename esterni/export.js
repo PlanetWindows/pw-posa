@@ -4,7 +4,7 @@ function download(blob,name){const url=URL.createObjectURL(blob),a=document.crea
 function clean(value){return String(value??'').replace(/[<>:"/\\|?*\u0000-\u001f]/g,'_').slice(0,120)||'allegato';}
 function makePdf(title,lines){
  const doc=new window.jspdf.jsPDF({unit:'mm',format:'a4'});doc.addFileToVFS('Poppins-Regular.ttf',window.PWExternalFont);doc.addFont('Poppins-Regular.ttf','Poppins','normal');doc.setFont('Poppins','normal');let y=39;
- const header=()=>{doc.setFillColor(25,63,52);doc.rect(0,0,210,23,'F');doc.setTextColor(255);doc.setFontSize(13);doc.text('PLANET WINDOWS | PW Posa Esterni',16,14);doc.setTextColor(30,40,32);doc.setFontSize(17);doc.text(title,16,32);};header();
+ const header=()=>{doc.setFillColor(17,17,17);doc.rect(0,0,210,23,'F');doc.setTextColor(255);doc.setFontSize(13);doc.text('PLANET WINDOWS | PW Posa Esterni',16,14);doc.setTextColor(32,32,32);doc.setFontSize(17);doc.text(title,16,32);};header();
  doc.setFontSize(10);doc.setFont('Poppins','normal');
  for(const line of lines){for(const part of doc.splitTextToSize(String(line??''),178)){if(y>279){doc.addPage();header();y=42;doc.setFontSize(10);}doc.text(part,16,y);y+=5.6;}y+=2;}
  const pages=doc.getNumberOfPages();for(let p=1;p<=pages;p++){doc.setPage(p);doc.setFontSize(8);doc.setTextColor(120);doc.text(`${p} / ${pages}`,194,291,{align:'right'});}
