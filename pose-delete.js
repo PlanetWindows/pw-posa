@@ -29,7 +29,7 @@
     dlg.innerHTML = `<div class="delete-pose-inner">
       <div class="eyebrow">CONFERMA ELIMINAZIONE</div>
       <h3 id="deletePoseTitle">Eliminare la posa?</h3>
-      <p id="deletePoseText">Questa operazione eliminerà definitivamente la posa e i dati collegati.</p>
+      <p id="deletePoseText">La posa sarà rimossa dai calendari. Il fascicolo e i documenti resteranno nello storico.</p>
       <div class="delete-pose-actions">
         <button type="button" class="btn ghost" id="deletePoseCancel">Annulla</button>
         <button type="button" class="btn delete-pose-danger" id="deletePoseConfirm">Elimina posa</button>
@@ -47,12 +47,29 @@
     if(!isScheduler(p)) return toast('Solo l’Ufficio che gestisce il calendario può eliminare pose');
     const btn=$('deletePoseConfirm'); if(btn) btn.disabled=true;
     try{
-      const {data,error} = await sb.from('poses').delete().eq('id',currentPoseId).select('id');
-      if(error) throw error;
-      if(!data?.length) throw new Error('La posa non è stata eliminata. Verifica che la policy DELETE di Supabase consenta l’operazione all’Ufficio.');
+      const {data:{session}} = await sb.auth.getSession();
+      if(!session) throw new Error('Sessione scaduta. Accedi nuovamente.');
+      const {data:pose,error:poseError}=await sb.from('poses').select('id,external_request_id,deleted_at').eq('id',currentPoseId).single();
+      if(poseError) throw poseError;
+      if(pose.deleted_at) throw new Error('Questa posa è già stata rimossa dal calendario.');
+      if(pose.external_request_id){
+        const {data:request,error:requestError}=await sb.from('external_requests').select('version,cancelled_at').eq('id',pose.external_request_id).single();
+        if(requestError) throw requestError;
+        if(request.cancelled_at) throw new Error('Questa posa esterna è già stata annullata.');
+        const {error}=await sb.rpc('pw_external_cancel_request',{p_id:pose.external_request_id,p_version:request.version,p_confirm:true,p_reason:''});
+        if(error) throw error;
+      } else {
+        const {data,error}=await sb.from('poses').update({
+          deleted_at:new Date().toISOString(),
+          deleted_by:session.user.id,
+          updated_by:session.user.id
+        }).eq('id',currentPoseId).is('deleted_at',null).select('id');
+        if(error) throw error;
+        if(!data?.length) throw new Error('Non è stato possibile rimuovere la posa dalla programmazione.');
+      }
       $('deletePoseDialog')?.close();
       $('detailDialog')?.close();
-      toast('Posa eliminata');
+      toast('Posa rimossa dai calendari. Fascicolo conservato in Archivio.');
       currentPoseId=null; currentJobNumber='';
       const calendarNav=document.querySelector('.nav-item[data-view="calendar"]:not(.hidden)') || document.querySelector('.nav-item[data-view="calendar"]');
       calendarNav?.click();
@@ -88,7 +105,7 @@
       btn.addEventListener('click',()=>{
         const dlg=ensureConfirmDialog();
         $('deletePoseTitle').textContent=`Eliminare la posa ${currentJobNumber || ''}?`;
-        $('deletePoseText').textContent='Confermando, la posa verrà eliminata definitivamente insieme ai dati collegati. Questa operazione non può essere annullata.';
+        $('deletePoseText').textContent='Confermando, la posa verrà rimossa dai calendari e le date saranno liberate. Il fascicolo, le foto e i rapportini resteranno nell’Archivio.';
         if(!dlg.open) dlg.showModal();
       });
     }
