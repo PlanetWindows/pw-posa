@@ -32,6 +32,12 @@ Tutti i dati operativi sono su Supabase. Non sono presenti chiavi privilegiate n
 
 La migrazione `20261030091202_pw_posa_esterni.sql` e la funzione `pw-external-admin` devono essere applicate prima della pubblicazione dei file. Il test `tests/external-workflow.sql` usa dati sintetici e annulla tutta la transazione.
 
+## Password dimenticata del posatore
+
+L’ufficio può aprire **Posatori → Reimposta password** (anche dentro Modifica), scegliere una nuova password da 12 a 72 caratteri e confermarla. Non è richiesta la vecchia password. La password viene aggiornata con Auth Admin solo per il profilo installer attivo collegato all’anagrafica; gli account ufficio, disattivati o in eliminazione sono esclusi. Il cambio revoca le sessioni di aggiornamento del posatore e non modifica incarichi, allegati, calendario o email. La nuova password va comunicata al posatore; non viene salvata nell’anagrafica né mostrata nell’elenco.
+
+`node tests/external-installer-password-reset.mjs` verifica permessi e bersaglio, mentre `node tests/external-installer-password-reset-ui.cjs` verifica conferma e invio del modulo.
+
 ## Eliminazione dei posatori
 
 Da Posatori, l’ufficio può premere Elimina oppure Modifica → Elimina posatore. La conferma richiede di scrivere il nome completo. L’accesso Auth viene eliminato in modo irreversibile e il posatore sparisce dall’elenco; il suo riferimento storico resta per conservare incarichi, date confermate, fotografie e fascicoli dell’ufficio. La disattivazione resta invece reversibile.

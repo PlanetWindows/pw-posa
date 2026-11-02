@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.118.0";
 import { deleteInstallerAccount, DeletionError } from './deletion-workflow.mjs';
+import { resetInstallerPassword, PasswordResetError } from './reset-workflow.mjs';
 const admin=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,{auth:{persistSession:false,autoRefreshToken:false}});
 const headers={'Content-Type':'application/json','Access-Control-Allow-Origin':'*','Access-Control-Allow-Headers':'authorization,x-client-info,apikey,content-type','Access-Control-Allow-Methods':'POST,OPTIONS'};
 const reply=(data:unknown,status=200)=>new Response(JSON.stringify(data),{status,headers});
@@ -13,6 +14,7 @@ Deno.serve(async(req:Request)=>{
  if(profile.error||!profile.data.active||profile.data.role!=='office_scheduler')return reply({error:'Accesso riservato all’ufficio'},403);
  try{
   const body=await req.json();
+  if(body.action==='reset_installer_password')return reply(await resetInstallerPassword(admin,{id:auth.data.user.id,...profile.data},body.installer_id,body.password));
   if(body.action==='delete_installer'){
    const caller=createClient(Deno.env.get('SUPABASE_URL')!,Deno.env.get('SUPABASE_ANON_KEY')!,{global:{headers:{Authorization:`Bearer ${token}`}},auth:{persistSession:false,autoRefreshToken:false}});
    return reply(await deleteInstallerAccount(admin,caller,String(body.installer_id||''),String(body.confirmation_name||'').trim()));
@@ -35,5 +37,5 @@ Deno.serve(async(req:Request)=>{
    return reply({error:'Non è stato possibile completare l’anagrafica del posatore. Riprova.'},500);
   }
   return reply({ok:true,installer_id:provision.data});
- }catch(error){if(error instanceof DeletionError)return reply({error:error.message},error.status);console.error('PW Esterni: creazione posatore non riuscita',error instanceof Error?error.message:'errore');return reply({error:'Creazione del posatore non riuscita. Riprova.'},500);}
+ }catch(error){if(error instanceof DeletionError||error instanceof PasswordResetError)return reply({error:error.message},error.status);console.error('PW Esterni: operazione non riuscita',error instanceof Error?error.message:'errore');return reply({error:'Operazione sul posatore non riuscita. Riprova.'},500);}
 });

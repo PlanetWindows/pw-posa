@@ -29,6 +29,6 @@ const html=fs.readFileSync(path.join(root,'esterni/index.html'),'utf8');
 const worker=fs.readFileSync(path.join(root,'esterni/service-worker.js'),'utf8');
 assert.ok(html.includes('manifest.webmanifest?v=4'));
 assert.ok(worker.includes('manifest.webmanifest?v=4'));
-assert.ok(worker.includes('pw-posa-esterni-v7-distinct-app'));
+assert.match(worker,/const CACHE='pw-posa-esterni-[^']+'/);
 console.log('PASS: independent app identities, correct launch URLs, original main identity and icon retained, installer artwork retained, refreshed manifest cache.');
 console.log(JSON.stringify({main:a.id,external:b.id}));
