@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#171514">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="PW Posa Esterni">
+  <meta name="description" content="Installa PW Posa Esterni sul tuo iPhone o telefono Android e accedi con il tuo account.">
+  <title>PW Posa Esterni</title>
+  <link rel="apple-touch-icon" sizes="180x180" type="image/png" href="/pw-posa/esterni/apple-touch-icon-install-v5.png">
+  <link rel="preload" as="image" href="/pw-posa/esterni/apple-touch-icon-install-v5.png">
+  <link rel="icon" type="image/png" sizes="32x32" href="/pw-posa/esterni/favicon-32-v3.png">
+  <link rel="manifest" href="/pw-posa/esterni/manifest.webmanifest?v=4">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+    if (navigator.standalone === true || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)) {
+      location.replace(new URL('./', location.href).href);
+    }
+  </script>
+  <style>
+    :root { color-scheme: light; --ink:#211e1b; --muted:#726d65; --paper:#f6f3ed; --gold:#b18c4e; --line:#e8e1d5; }
+    * { box-sizing:border-box; }
+    [hidden] { display:none !important; }
+    body { margin:0; background:var(--paper); color:var(--ink); font-family:Poppins,Arial,sans-serif; -webkit-font-smoothing:antialiased; }
+    button,a,input { -webkit-tap-highlight-color:transparent; }
+    button,input { font:inherit; }
+    a { color:inherit; }
+    button,a { touch-action:manipulation; }
+    button:focus-visible,a:focus-visible,summary:focus-visible,input:focus-visible { outline:3px solid var(--gold); outline-offset:4px; }
+    .page { max-width:1000px; margin:auto; padding:36px 28px 28px; }
+    .brand { display:flex; align-items:center; justify-content:space-between; gap:20px; padding-bottom:30px; border-bottom:1px solid var(--line); }
+    .brand img { display:block; width:174px; max-height:48px; object-fit:contain; }
+    .brand span { font-size:10px; text-transform:uppercase; letter-spacing:.16em; color:var(--muted); }
+    main { display:grid; grid-template-columns:.85fr 1.15fr; gap:64px; align-items:start; padding:52px 0 34px; }
+    .app-icon { display:block; width:132px; height:132px; border-radius:27px; margin-bottom:26px; box-shadow:0 14px 32px #211e1b12; }
+    .eyebrow { color:var(--gold); font-size:10px; font-weight:600; letter-spacing:.18em; text-transform:uppercase; margin:0 0 12px; }
+    h1 { font-size:35px; line-height:1.22; font-weight:600; letter-spacing:-1.1px; margin:0 0 18px; }
+    .intro p { font-size:14px; line-height:1.8; color:var(--muted); margin:0 0 22px; }
+    .button { display:inline-flex; align-items:center; justify-content:center; gap:10px; min-height:48px; border:1px solid var(--ink); border-radius:11px; padding:12px 18px; background:var(--ink); color:#fff; font-size:13px; font-weight:500; line-height:1.5; text-decoration:none; cursor:pointer; }
+    .button.light { color:var(--ink); background:transparent; border-color:var(--line); }
+    .button.wide { display:flex; width:100%; }
+    .button:disabled { opacity:.55; cursor:default; }
+    .intro .account-note { font-size:11px; margin-top:14px; }
+    .guide { background:#fff; border:1px solid var(--line); border-radius:22px; padding:28px; }
+    .guide h2 { font-size:18px; font-weight:600; margin:0 0 18px; letter-spacing:-.35px; }
+    .tabs { display:grid; grid-template-columns:1fr 1fr; gap:5px; background:var(--paper); border-radius:10px; padding:5px; margin-bottom:24px; }
+    .tabs button { border:0; border-radius:7px; background:transparent; padding:11px 9px; color:var(--muted); font-size:12px; font-weight:500; cursor:pointer; }
+    .tabs button[aria-selected="true"] { background:var(--ink); color:#fff; }
+    ol { list-style:none; padding:0; margin:0; counter-reset:steps; }
+    li { position:relative; counter-increment:steps; padding:0 0 22px 39px; font-size:12px; color:var(--muted); line-height:1.85; }
+    li::before { content:counter(steps,decimal-leading-zero); position:absolute; left:0; top:1px; color:var(--gold); font-size:12px; font-weight:600; }
+    li strong { color:var(--ink); font-weight:500; }
+    .tip { font-size:11px; line-height:1.85; padding:14px; border-radius:10px; background:var(--paper); color:var(--muted); margin:0; }
+    details { border-top:1px solid var(--line); margin-top:21px; padding-top:18px; }
+    summary { font-size:12px; font-weight:500; cursor:pointer; line-height:1.7; }
+    details p { color:var(--muted); font-size:11px; line-height:1.9; margin:14px 0; }
+    details ol { margin-top:18px; }
+    details li { padding-bottom:14px; font-size:11px; }
+    .profile-note { font-size:10px; }
+    .share { display:flex; align-items:center; gap:12px; border-top:1px solid var(--line); padding-top:23px; }
+    .share label { flex:1; min-width:0; }
+    .share label span { display:block; font-size:10px; color:var(--muted); margin-bottom:6px; }
+    .share input { display:block; width:100%; border:0; padding:4px 0; background:transparent; color:var(--ink); font-size:10px; text-overflow:ellipsis; border-radius:0; }
+    .share .button { min-height:40px; padding:9px 14px; font-size:11px; }
+    .notice { min-height:22px; color:var(--muted); font-size:11px; line-height:1.8; margin:12px 0 0; }
+    .icon-error { color:#a83a2f; background:#fff; border:1px solid #efd6d0; border-radius:10px; padding:12px; font-size:12px; line-height:1.7; }
+    footer { color:var(--muted); font-size:10px; padding:14px 0 4px; }
+    footer a { text-decoration:none; }
+    @media (max-width:720px) {
+      .page { max-width:510px; padding:23px 20px max(24px,env(safe-area-inset-bottom)); }
+      .brand { padding-bottom:21px; }
+      .brand img { width:145px; max-height:40px; }
+      .brand span { font-size:8px; letter-spacing:.1em; }
+      main { grid-template-columns:1fr; gap:28px; padding:31px 0 27px; }
+      .app-icon { width:100px; height:100px; border-radius:22px; margin-bottom:21px; }
+      h1 { font-size:29px; letter-spacing:-.8px; margin-bottom:14px; }
+      .intro p { font-size:13px; margin-bottom:18px; }
+      .guide { padding:23px 21px; border-radius:18px; }
+      .share { gap:9px; }
+    }
+  </style>
+</head>
+<body>
+<div class="page">
+  <header class="brand">
+    <img src="./logo_planet.svg" alt="Planet Windows" width="174" height="48">
+    <span>Il tuo spazio di lavoro</span>
+  </header>
+  <main>
+    <section class="intro" aria-labelledby="app-title">
+      <img id="app-icon" class="app-icon" src="/pw-posa/esterni/apple-touch-icon-install-v5.png" alt="Finestra oro Planet Windows con due posatori su fondo nero" width="180" height="180" fetchpriority="high">
+      <p class="eyebrow">Planet Windows</p>
+      <h1 id="app-title">PW Posa<br>Esterni</h1>
+      <p>Incarichi, appuntamenti e documenti.<br>Aggiungi l’app alla schermata Home per ritrovarla con un tocco.</p>
+      <a class="button" href="./">Apri l’app <span aria-hidden="true">↗</span></a>
+      <p class="account-note">Accedi con le credenziali del tuo account.</p>
+      <p id="icon-error" class="icon-error" hidden>L’immagine non è stata caricata. Ricarica questa pagina prima di aggiungere l’app alla Home.</p>
+    </section>
+    <section class="guide" aria-labelledby="guide-title">
+      <h2 id="guide-title">Installa sul tuo telefono</h2>
+      <div class="tabs" role="tablist" aria-label="Tipo di telefono">
+        <button id="tab-iphone" role="tab" aria-selected="true" aria-controls="panel-iphone" tabindex="0">iPhone</button>
+        <button id="tab-android" role="tab" aria-selected="false" aria-controls="panel-android" tabindex="-1">Android</button>
+      </div>
+      <div id="panel-iphone" role="tabpanel" aria-labelledby="tab-iphone">
+        <ol>
+          <li><strong>Apri questa pagina in Safari.</strong><br>Se sei dentro WhatsApp o un’altra app, usa il menu per aprire il collegamento in Safari.</li>
+          <li>Tocca <strong>Condividi</strong> e scegli <strong>Aggiungi alla schermata Home</strong>.</li>
+          <li>Attiva <strong>Apri come app web</strong>, se presente. Controlla l’icona nell’anteprima e tocca <strong>Aggiungi</strong>.</li>
+        </ol>
+        <p class="tip">L’icona attesa è la finestra oro con i due posatori, come nell’immagine di questa pagina.</p>
+        <details>
+          <summary>Compare ancora la lettera “P”?</summary>
+          <p>Puoi aggiungere il collegamento per iPhone con l’immagine già incorporata. Il profilo contiene unicamente il collegamento a PW Posa Esterni.</p>
+          <a class="button light wide" href="./PW_Posa_Esterni_Icona_iPhone.mobileconfig" type="application/x-apple-aspen-config">Scarica il collegamento iPhone</a>
+          <ol>
+            <li>Apri il download da <strong>Safari</strong> e tocca <strong>Consenti</strong> quando iPhone lo richiede.</li>
+            <li>Apri <strong>Impostazioni → Profilo scaricato → Installa</strong> e segui le indicazioni sul telefono.</li>
+            <li>Apri <strong>PW Posa Esterni</strong> dalla nuova icona sulla Home.</li>
+          </ol>
+          <p class="profile-note">Il collegamento è rimovibile e non contiene credenziali: ciascuno accede con il proprio account.</p>
+        </details>
+      </div>
+      <div id="panel-android" role="tabpanel" aria-labelledby="tab-android" hidden>
+        <ol>
+          <li><strong>Apri questa pagina in Chrome.</strong></li>
+          <li>Dal menu <strong>⋮</strong> scegli <strong>Installa e crea scorciatoia → Installa</strong>. In alcune versioni trovi <strong>Installa app</strong> oppure <strong>Aggiungi a schermata Home</strong>.</li>
+          <li>Conferma l’installazione e apri <strong>PW Posa Esterni</strong> dalla schermata Home.</li>
+        </ol>
+        <button id="install-android" class="button wide" hidden>Installa PW Posa Esterni</button>
+        <p class="tip">Se l’app è già installata, usa il pulsante “Apri l’app”.</p>
+      </div>
+      <noscript><p class="tip">Su Android apri la pagina dell’app in Chrome, quindi scegli Installa dal menu ⋮.</p></noscript>
+    </section>
+  </main>
+  <section class="share" aria-label="Condividi il collegamento">
+    <label for="share-link"><span>Lo stesso link per iPhone e Android</span><input id="share-link" type="url" readonly value="https://planetwindows.github.io/pw-posa/esterni/installa.html"></label>
+    <button id="copy-link" class="button light">Copia link</button>
+  </section>
+  <p class="notice" id="notice" role="status" aria-live="polite"></p>
+  <footer>Planet Windows · <a href="tel:+393669750942">Assistenza: 366 975 0942</a></footer>
+</div>
+<script>
+  (() => {
+    const notice = document.getElementById('notice');
+    const tabs = [...document.querySelectorAll('[role="tab"]')];
+    const show = (type) => {
+      for (const tab of tabs) {
+        const selected = tab.id === 'tab-' + type;
+        tab.setAttribute('aria-selected', String(selected));
+        tab.tabIndex = selected ? 0 : -1;
+        document.getElementById(tab.getAttribute('aria-controls')).hidden = !selected;
+      }
+    };
+    for (const tab of tabs) {
+      tab.addEventListener('click', () => show(tab.id.replace('tab-', '')));
+      tab.addEventListener('keydown', (event) => {
+        if (!['ArrowLeft','ArrowRight','Home','End'].includes(event.key)) return;
+        event.preventDefault();
+        const target = event.key === 'Home' ? tabs[0] : event.key === 'End' ? tabs[1] : tabs.find((other) => other !== tab);
+        show(target.id.replace('tab-', ''));
+        target.focus();
+      });
+    }
+    if (/Android/i.test(navigator.userAgent)) show('android');
+    document.getElementById('copy-link').addEventListener('click', async () => {
+      const field = document.getElementById('share-link');
+      try {
+        if (!navigator.clipboard) throw new Error('clipboard unavailable');
+        await navigator.clipboard.writeText(field.value);
+        notice.textContent = 'Link copiato. Puoi inoltrarlo alle altre persone.';
+      } catch (_) {
+        field.focus(); field.select(); field.setSelectionRange(0, field.value.length);
+        notice.textContent = 'Il link è selezionato: usa Copia per inoltrarlo.';
+      }
+    });
+    const icon = document.getElementById('app-icon');
+    const showIconError = () => { document.getElementById('icon-error').hidden = false; };
+    icon.addEventListener('error', showIconError);
+    if (icon.complete && !icon.naturalWidth) showIconError();
+    let installPrompt = null;
+    const installButton = document.getElementById('install-android');
+    window.addEventListener('beforeinstallprompt', (event) => {
+      event.preventDefault(); installPrompt = event; installButton.hidden = false;
+    });
+    installButton.addEventListener('click', async () => {
+      const prompt = installPrompt;
+      if (!prompt) return;
+      installPrompt = null; installButton.hidden = true;
+      try { await prompt.prompt(); await prompt.userChoice; }
+      catch (_) { notice.textContent = 'Usa il menu di Chrome per installare l’app.'; }
+    });
+    window.addEventListener('appinstalled', () => {
+      installPrompt = null; installButton.hidden = true;
+      notice.textContent = 'App installata. Puoi aprirla dalla schermata Home.';
+    });
+    if ('serviceWorker' in navigator) navigator.serviceWorker.register('./service-worker.js', {scope:'./'}).catch(() => {});
+  })();
+</script>
+</body>
+</html>
