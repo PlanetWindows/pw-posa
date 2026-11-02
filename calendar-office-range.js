@@ -58,7 +58,7 @@
 
     running=true;
     try{
-      const {data:poses,error}=await sb.from('poses').select('id,scheduled_date,scheduled_end_date');
+      const {data:poses,error}=await sb.from('poses').select('id,scheduled_date,scheduled_end_date').is('deleted_at',null);
       if(error) return;
       const days=monthMatrix(shown.month,shown.year);
       const cells=[...grid.querySelectorAll('.calendar-day')];
