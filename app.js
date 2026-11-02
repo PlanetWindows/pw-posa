@@ -99,7 +99,7 @@
 
   async function loadPoses(){
     if(state.profile.role === "technician"){ state.poses=[]; return; }
-    let query = sb.from("poses").select("*").order("scheduled_date").order("start_time");
+    let query = sb.from("poses").select("*").is("deleted_at",null).order("scheduled_date").order("start_time");
     if(!isOffice()){
       const membership = await sb.from("team_members").select("team_id").eq("user_id",state.session.user.id).eq("active",true);
       if(membership.error) throw membership.error;
