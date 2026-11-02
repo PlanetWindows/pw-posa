@@ -16,6 +16,14 @@ Dopo la conferma si possono inserire più foto prima e dopo i lavori, compilare 
 
 L’ufficio esporta il fascicolo ZIP dal riepilogo in entrambe le app. Contiene riepilogo PDF, rapportini PDF, collaudo PDF, storico e tutti i documenti e le foto originali. Se un allegato non è scaricabile l’esportazione si interrompe con un errore, senza produrre un fascicolo parziale.
 
+## Eliminazione delle pose
+
+L’Ufficio può aprire il riepilogo di una posa e scegliere **Elimina posa**, anche da PW Posa tramite il riepilogo integrato. Il modulo mostra indirizzo e giornate e richiede una conferma; il motivo è facoltativo e viene condiviso con il posatore. La cancellazione rimuove la posa derivata da PW Posa e libera tutte le prenotazioni in un’unica transazione. Il posatore e gli altri uffici ricevono la notifica; l’autore non la riceve.
+
+La posa scompare dai calendari e dagli incarichi correnti. Da **Incarichi → Eliminate (storico)** si consultano riepilogo, allegati, foto, rapportini, collaudo e storico, e si può esportare il fascicolo. Lo storico è in sola lettura. Il marcatore `cancelled_at` è autorevole e conserva lo stato operativo precedente; risposte, modifiche e allegati successivi sono respinti anche dal server.
+
+`tests/external-request-cancellation.sql` verifica autorizzazioni, atomicità, rilascio delle date, conservazione del fascicolo e delle notifiche, isolamento e blocco dei comandi obsoleti, con dati sintetici e rollback. `node tests/external-request-cancellation-ui.cjs` verifica il modulo e il filtro storico.
+
 ## Notifiche e installazione
 
 PW Posa e PW Posa Esterni si installano separatamente. La principale si apre da `https://planetwindows.github.io/pw-posa/`, Esterni da `https://planetwindows.github.io/pw-posa/esterni/`. In Chrome, aprire ciascun indirizzo in una scheda normale e usare Installa questa pagina come app; poi fissare ciascuna finestra alla barra delle applicazioni. La principale mantiene l’identità e l’icona esistenti, Esterni usa l’icona dei posatori e l’identità `/pw-posa/esterni/`.

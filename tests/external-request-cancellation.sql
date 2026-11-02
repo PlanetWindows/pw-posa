@@ -1,0 +1,97 @@
+-- Synthetic data only. The final rollback removes every fixture and notification.
+begin;
+create temporary table cancel_test(office_id uuid,viewer_id uuid,first_id uuid,second_id uuid,installer_id uuid,other_installer_id uuid,confirmed_id uuid,pending_id uuid,completed_id uuid,other_id uuid,main_pose uuid,completed_pose uuid,unrelated_pose uuid,old_notifications integer,first_file text,pdf_file text);
+insert into cancel_test(office_id,viewer_id,first_id,second_id)
+ select id,gen_random_uuid(),gen_random_uuid(),gen_random_uuid() from public.profiles where role='office_scheduler' and active limit 1;
+do $$declare c cancel_test;uid uuid;r public.external_requests;payload jsonb;day date:=(now() at time zone 'Europe/Rome')::date;begin
+ select * into c from cancel_test;
+ if c.office_id is null then raise exception 'An active office fixture is required';end if;
+ foreach uid in array array[c.viewer_id,c.first_id,c.second_id] loop
+  insert into auth.users(id,email,raw_user_meta_data,raw_app_meta_data,aud,role)
+   values(uid,'pwqa-'||uid||'@example.invalid','{"full_name":"PW QA Cancel"}','{}','authenticated','authenticated');
+ end loop;
+ update public.profiles set role='office_viewer' where id=c.viewer_id;
+ c.installer_id:=public.pw_external_provision(c.first_id,'PW QA Cancel first','','cancel-first@example.invalid','','');
+ c.other_installer_id:=public.pw_external_provision(c.second_id,'PW QA Cancel other','','cancel-other@example.invalid','','');
+ perform set_config('request.jwt.claim.sub',c.office_id::text,true);
+ payload:=jsonb_build_object('installer_id',c.installer_id,'address','Via di prova cancellazione 1','floor','Terra','description','Posa di prova','price',100,'work_dates',jsonb_build_array(day,day+2),'start_time','08:00','end_time','17:00');
+ r:=public.pw_external_save_request(payload,null,null);c.confirmed_id:=r.id;
+ perform set_config('request.jwt.claim.sub',c.first_id::text,true);
+ r:=public.pw_external_respond(r.id,'accept',r.version,'{"accept_conditions":true}');c.main_pose:=r.linked_pose_id;
+ c.first_file:='requests/'||r.id||'/before/'||c.first_id||'/photo.jpg';
+ insert into storage.objects(bucket_id,name,owner_id,owner,metadata) values('pw-external-private',c.first_file,c.first_id::text,c.first_id,'{"mimetype":"image/jpeg","size":20}');
+ perform public.pw_external_register_file(r.id,'before',c.first_file,'photo.jpg');
+ perform set_config('request.jwt.claim.sub',c.office_id::text,true);
+ c.pdf_file:='requests/'||r.id||'/pdf/'||c.office_id||'/document.pdf';
+ insert into storage.objects(bucket_id,name,owner_id,owner,metadata) values('pw-external-private',c.pdf_file,c.office_id::text,c.office_id,'{"mimetype":"application/pdf","size":20}');
+ perform public.pw_external_register_file(r.id,'pdf',c.pdf_file,'document.pdf');
+ c.old_notifications:=(select count(*) from public.notifications where entity_id=c.confirmed_id);
+ r:=public.pw_external_save_request(payload,null,null);c.pending_id:=r.id;
+ payload:=jsonb_set(payload,'{work_dates}',jsonb_build_array(day-1));
+ r:=public.pw_external_save_request(payload,null,null);c.completed_id:=r.id;
+ perform set_config('request.jwt.claim.sub',c.first_id::text,true);
+ r:=public.pw_external_respond(r.id,'accept',r.version,'{"accept_conditions":true}');c.completed_pose:=r.linked_pose_id;
+ perform public.pw_external_save_report(r.id,r.version,jsonb_build_object('report_date',day-1,'description','Lavoro concluso','incomplete',false));
+ select * into r from public.external_requests where id=c.completed_id;
+ perform public.pw_external_save_test(r.id,r.version,jsonb_build_object('test_date',day-1,'outcome','conforme','checks','Verifiche di prova','cleaned',true,'operator_name','QA'));
+ perform set_config('request.jwt.claim.sub',c.office_id::text,true);
+ payload:=jsonb_set(payload,'{installer_id}',to_jsonb(c.other_installer_id));
+ r:=public.pw_external_save_request(payload,null,null);c.other_id:=r.id;
+ insert into public.poses(job_number,client_name,address,scheduled_date,scheduled_end_date,start_time,end_time,team_id)
+  select 'QA-CANCEL-'||left(c.other_id::text,8),'QA unrelated','Via test',day+10,day+10,'08:00','17:00',team_id from public.external_installers where id=c.other_installer_id returning id into c.unrelated_pose;
+ update cancel_test set installer_id=c.installer_id,other_installer_id=c.other_installer_id,confirmed_id=c.confirmed_id,pending_id=c.pending_id,completed_id=c.completed_id,other_id=c.other_id,main_pose=c.main_pose,completed_pose=c.completed_pose,unrelated_pose=c.unrelated_pose,old_notifications=c.old_notifications,first_file=c.first_file,pdf_file=c.pdf_file;
+end;$$;
+grant select on cancel_test to authenticated;
+set local role authenticated;
+do $$declare c cancel_test;r public.external_requests;again public.external_requests;fresh public.external_requests;denied boolean;original_version integer;n integer;day date:=(now() at time zone 'Europe/Rome')::date;payload jsonb;begin
+ select * into c from cancel_test;
+ foreach original_version in array array[1,2] loop
+  perform set_config('request.jwt.claim.sub',case original_version when 1 then c.first_id else c.viewer_id end::text,true);
+  denied:=false;begin perform public.pw_external_cancel_request(c.confirmed_id,2,true,'');exception when others then denied:=true;end;
+  if not denied then raise exception 'TEST failed: installer or viewer cancelled a pose';end if;
+ end loop;
+ perform set_config('request.jwt.claim.sub',c.office_id::text,true);
+ select * into r from public.external_requests where id=c.confirmed_id;original_version:=r.version;
+ denied:=false;begin perform public.pw_external_cancel_request(r.id,r.version,false,'');exception when others then denied:=true;end;if not denied then raise exception 'TEST failed: missing confirmation accepted';end if;
+ denied:=false;begin perform public.pw_external_cancel_request(r.id,r.version-1,true,'');exception when others then denied:=true;end;if not denied then raise exception 'TEST failed: stale cancellation accepted';end if;
+ if not exists(select 1 from public.poses where id=c.main_pose) or (select count(*) from public.external_bookings where request_id=r.id)<>2 then raise exception 'TEST failed: rejected cancellation changed dates';end if;
+ r:=public.pw_external_cancel_request(r.id,r.version,true,'Data di prova eliminata');
+ if r.cancelled_at is null or r.cancelled_by<>c.office_id or r.cancelled_from_status<>'confirmed' or r.cancelled_pose_id<>c.main_pose or r.version<>original_version+1 or r.linked_pose_id is not null then raise exception 'TEST failed: cancellation metadata or version incorrect';end if;
+ if exists(select 1 from public.poses where id=c.main_pose) or exists(select 1 from public.pose_dates where pose_id=c.main_pose) or exists(select 1 from public.external_bookings where request_id=r.id) then raise exception 'TEST failed: calendar dates not released';end if;
+ if (select count(*) from public.external_files where request_id=r.id)<>2 or not exists(select 1 from storage.objects where bucket_id='pw-external-private' and name=c.first_file) or not exists(select 1 from storage.objects where bucket_id='pw-external-private' and name=c.pdf_file) then raise exception 'TEST failed: archived files lost';end if;
+ if (select count(*) from public.notifications where entity_id=r.id and notification_type<>'external_cancelled')<>c.old_notifications then raise exception 'TEST failed: old inbox history cascaded';end if;
+ if (select count(*) from public.notifications where entity_id=r.id and notification_type='external_cancelled' and recipient_id=c.first_id)<>1 or (select count(*) from public.notifications where entity_id=r.id and notification_type='external_cancelled' and recipient_id=c.viewer_id)<>1 or exists(select 1 from public.notifications where entity_id=r.id and notification_type='external_cancelled' and recipient_id in(c.office_id,c.second_id)) then raise exception 'TEST failed: cancellation recipients incorrect';end if;
+ if exists(select 1 from public.notifications where entity_id=r.id and notification_type not like 'external_%') then raise exception 'TEST failed: duplicate legacy deletion notification';end if;
+ n:=(select count(*) from public.notifications where entity_id=r.id);
+ again:=public.pw_external_cancel_request(r.id,original_version,true,'Retry');
+ if again.version<>r.version or (select count(*) from public.notifications where entity_id=r.id)<>n or (select count(*) from public.external_events where request_id=r.id and action='cancelled')<>1 then raise exception 'TEST failed: retry duplicated cancellation';end if;
+ denied:=false;begin perform public.pw_external_register_file(r.id,'pdf','requests/'||r.id||'/pdf/'||c.office_id||'/late.pdf','late.pdf');exception when others then denied:=sqlerrm like '%eliminata%';end;if not denied then raise exception 'TEST failed: office attached to archived work';end if;
+ denied:=false;begin insert into storage.objects(bucket_id,name,owner_id,metadata) values('pw-external-private','requests/'||r.id||'/pdf/'||c.office_id||'/late.pdf',c.office_id::text,'{"mimetype":"application/pdf","size":20}');exception when insufficient_privilege then denied:=true;end;if not denied then raise exception 'TEST failed: storage upload to cancelled work permitted';end if;
+ perform set_config('request.jwt.claim.sub',c.first_id::text,true);
+ if not exists(select 1 from public.external_requests where id=r.id) or pw_external.can_work(r.id) then raise exception 'TEST failed: archived request not readable or still writable';end if;
+ denied:=false;begin perform public.pw_external_save_report(r.id,r.version,jsonb_build_object('report_date',day,'description','Late update'));exception when others then denied:=true;end;if not denied then raise exception 'TEST failed: archived work report accepted';end if;
+ denied:=false;begin perform public.pw_external_save_test(r.id,r.version,jsonb_build_object('test_date',day,'outcome','da_completare','checks','Late','cleaned',false,'operator_name','QA','notes','Late'));exception when others then denied:=true;end;if not denied then raise exception 'TEST failed: archived test accepted';end if;
+ perform set_config('request.jwt.claim.sub',c.second_id::text,true);
+ if exists(select 1 from public.external_requests where id=r.id) or exists(select 1 from public.external_files where request_id=r.id) then raise exception 'TEST failed: archive leaked to another installer';end if;
+ perform set_config('request.jwt.claim.sub',c.office_id::text,true);
+ select * into r from public.external_requests where id=c.pending_id;
+ r:=public.pw_external_cancel_request(r.id,r.version,true,'');
+ payload:=jsonb_build_object('installer_id',c.installer_id,'address','Via test nuova','floor','Terra','description','Nuova posa','price',100,'work_dates',jsonb_build_array(day,day+2),'start_time','08:00','end_time','17:00');
+ denied:=false;begin perform public.pw_external_save_request(payload,r.id,r.version);exception when others then denied:=true;end;if not denied then raise exception 'TEST failed: cancelled pending request edited';end if;
+ perform set_config('request.jwt.claim.sub',c.first_id::text,true);
+ denied:=false;begin perform public.pw_external_respond(r.id,'accept',r.version,'{"accept_conditions":true}');exception when others then denied:=true;end;if not denied then raise exception 'TEST failed: cancelled pending request accepted';end if;
+ perform set_config('request.jwt.claim.sub',c.office_id::text,true);
+ fresh:=public.pw_external_save_request(payload,null,null);
+ perform set_config('request.jwt.claim.sub',c.first_id::text,true);
+ fresh:=public.pw_external_respond(fresh.id,'accept',fresh.version,'{"accept_conditions":true}');
+ if fresh.linked_pose_id is null or (select count(*) from public.external_bookings where request_id=fresh.id)<>2 then raise exception 'TEST failed: released dates not reusable';end if;
+ perform set_config('request.jwt.claim.sub',c.office_id::text,true);
+ select * into r from public.external_requests where id=c.completed_id;
+ r:=public.pw_external_cancel_request(r.id,r.version,true,'Archivio di prova');
+ if r.cancelled_from_status<>'completed' or not exists(select 1 from public.external_reports where request_id=r.id) or not exists(select 1 from public.external_tests where request_id=r.id) then raise exception 'TEST failed: report or final test lost';end if;
+ if not exists(select 1 from public.poses where id=c.unrelated_pose) or not exists(select 1 from public.external_requests where id=c.other_id and cancelled_at is null) then raise exception 'TEST failed: unrelated work changed';end if;
+ if has_function_privilege('anon','public.pw_external_cancel_request(uuid,integer,boolean,text)','execute') or has_table_privilege('authenticated','public.external_requests','delete') then raise exception 'TEST failed: unrestricted deletion exposed';end if;
+end;$$;
+reset role;
+rollback;
+select 'PASS: office-only confirmation, stale-version protection, atomic removal from both calendars, reusable dates, archived dossiers and old notifications, reciprocal single notifications, idempotency, read-only archives and cross-installer isolation' as result;
