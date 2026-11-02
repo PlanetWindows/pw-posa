@@ -54,6 +54,7 @@
     const query = table => {
       if(technician||(!office&&!teamIds.length)) return Promise.resolve({data:[],error:null});
       let q=sb.from(table).select('*').order('scheduled_date').order('start_time');
+      if(table==='poses') q=q.is('deleted_at',null);
       if(!office)q=q.in('team_id',teamIds);return q;
     };
     const results=await Promise.all([
