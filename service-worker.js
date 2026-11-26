@@ -1,4 +1,4 @@
-const CACHE_NAME = 'pw-posa-shell-v43-suggestions';
+const CACHE_NAME = 'pw-posa-shell-v44-address-link';
 const BADGE_STATE_CACHE = 'pw-posa-badge-state-v1';
 const BADGE_STATE_URL = new URL('./__pw_posa_badge_count__', self.location.href).href;
 const APP_SHELL = [

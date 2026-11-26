@@ -26,3 +26,9 @@
 .client-suggestions button:focus-visible {
   background: var(--gold-soft);
 }
+
+.detail-card .client-address-link {
+  color: #1756a9;
+  text-decoration: underline;
+  text-underline-offset: .15em;
+}

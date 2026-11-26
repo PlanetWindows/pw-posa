@@ -1,13 +1,16 @@
 (() => {
   const byId = id => document.getElementById(id);
+  const formatAddress = ({address, city, postal_code}) =>
+    [address, [postal_code, city].filter(Boolean).join(' ')].filter(Boolean).join(', ').trim();
+
   window.PWPoseMaps = {
-    addressCard({address, city, postal_code}) {
-      const location = [address, [postal_code, city].filter(Boolean).join(' ')].filter(Boolean).join(', ').trim();
+    addressCard(contact) {
+      const location = formatAddress(contact);
       const label = location.replace(/[&<>"']/g, character => ({
         '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
       })[character]);
-      const map = location && `<a href="https://www.google.com/maps/search/?api=1&amp;query=${encodeURIComponent(location)}" target="_blank" rel="noopener noreferrer" class="btn ghost">Apri in Google Maps</a>`;
-      return `<div class="detail-card"><div class="k">Indirizzo</div><div class="v">${label || '—'}</div>${map}</div>`;
+      const map = location ? `<a href="https://www.google.com/maps/search/?api=1&amp;query=${encodeURIComponent(location)}" target="_blank" rel="noopener noreferrer" class="client-address-link">${label}</a>` : '—';
+      return `<div class="detail-card"><div class="k">Indirizzo</div><div class="v">${map}</div></div>`;
     }
   };
 
@@ -140,8 +143,103 @@
     document.querySelectorAll('[data-program-type]').forEach(button => button.addEventListener('click', clear));
   }
 
+  function bindAddressSuggest(clientId, streetId, cityId, postalId) {
+    const client = byId(clientId);
+    const street = byId(streetId);
+    const city = byId(cityId);
+    const postal = byId(postalId);
+    if (!client || !street || !city || !postal) return;
+
+    const list = document.createElement('ul');
+    list.className = 'client-suggestions';
+    list.setAttribute('aria-label', 'Indirizzi di cantiere suggeriti');
+    list.hidden = true;
+    street.closest('label').append(list);
+    street.setAttribute('autocomplete', 'off');
+    const dialog = street.closest('dialog');
+    let timer;
+    let revision = 0;
+    let history;
+    let historyClient;
+
+    function clear() {
+      revision++;
+      clearTimeout(timer);
+      list.hidden = true;
+      list.replaceChildren();
+    }
+
+    function suggest() {
+      clear();
+      const name = client.value.trim();
+      if (!name) return;
+      const current = revision;
+      const filter = street.value.trim().toLocaleLowerCase('it');
+      timer = setTimeout(async () => {
+        if (historyClient !== name) {
+          const responses = await Promise.all(['poses', 'assistances'].map(table => {
+            const query = supabase.from(table).select('address,city,postal_code')
+              .eq('client_name', name).order('updated_at', { ascending: false }).limit(30);
+            return table === 'poses' ? query.is('external_request_id', null) : query;
+          }));
+          if (current !== revision || !dialog.open || client.value.trim() !== name) return;
+          history = responses.flatMap(response => response.data || []);
+          historyClient = name;
+        }
+        if (current !== revision || !dialog.open || client.value.trim() !== name) return;
+        const shown = new Set();
+        for (const address of history) {
+          const label = formatAddress(address);
+          const key = label.toLocaleLowerCase('it');
+          if (!address.address?.trim() || !key.includes(filter) || shown.has(key)) continue;
+          shown.add(key);
+          const item = document.createElement('li');
+          const button = document.createElement('button');
+          button.type = 'button';
+          button.textContent = label;
+          button.addEventListener('click', () => {
+            street.focus();
+            street.value = address.address;
+            city.value = address.city || '';
+            postal.value = address.postal_code || '';
+            clear();
+          });
+          item.append(button);
+          list.append(item);
+          if (shown.size === 6) break;
+        }
+        list.hidden = shown.size === 0;
+      }, 180);
+    }
+
+    street.addEventListener('focus', suggest);
+    street.addEventListener('input', suggest);
+    client.addEventListener('input', clear);
+    street.closest('form')?.addEventListener('reset', clear);
+    document.querySelectorAll('[data-program-type]').forEach(button => button.addEventListener('click', clear));
+    dialog.addEventListener('close', () => {
+      clear();
+      history = undefined;
+      historyClient = undefined;
+    });
+    street.closest('label').addEventListener('keydown', event => {
+      if (list.hidden) return;
+      if (event.key === 'ArrowDown' && event.target === street) {
+        event.preventDefault();
+        list.querySelector('button')?.focus();
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        street.focus();
+        clear();
+      }
+    });
+  }
+
   window.addEventListener('load', () => {
     bind('clientName', 'clientPhone', 'poseClientEmail');
     bind('assClient', 'assPhone', 'assEmail');
+    bindAddressSuggest('clientName', 'address', 'city', 'postalCode');
+    bindAddressSuggest('assClient', 'assAddress', 'assCity', 'assPostal');
   });
 })();
