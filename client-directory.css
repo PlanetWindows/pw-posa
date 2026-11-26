@@ -1,0 +1,28 @@
+.client-suggestions {
+  max-height: 12rem;
+  overflow: auto;
+  margin: .35rem 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+}
+
+.client-suggestions button {
+  display: block;
+  width: 100%;
+  padding: .65rem .75rem;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  text-align: left;
+  overflow-wrap: anywhere;
+  cursor: pointer;
+}
+
+.client-suggestions button:hover,
+.client-suggestions button:focus-visible {
+  background: var(--gold-soft);
+}

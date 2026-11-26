@@ -31,13 +31,19 @@
     results.setAttribute('aria-label', 'Contatti dalla rubrica clienti');
     toggle.setAttribute('aria-controls', results.id);
 
+    const suggestions = document.createElement('ul');
+    suggestions.className = 'client-suggestions';
+    suggestions.hidden = true;
+    suggestions.setAttribute('aria-label', 'Clienti suggeriti');
+    input.setAttribute('autocomplete', 'off');
+
     const status = document.createElement('small');
     status.className = 'muted';
     status.setAttribute('role', 'status');
     const label = input.closest('label');
     const field = document.createElement('div');
     label.before(field);
-    field.append(label, toggle, results, status);
+    field.append(label, suggestions, toggle, results, status);
 
     let timer;
     let revision = 0;
@@ -48,15 +54,25 @@
       contacts = [];
       results.hidden = true;
       results.replaceChildren();
+      suggestions.hidden = true;
+      suggestions.replaceChildren();
       status.textContent = '';
       toggle.setAttribute('aria-expanded', 'false');
     }
 
-    function search(query, delay = 0) {
+    function choose(contact) {
+      input.value = contact.client_name;
+      byId(phone).value = contact.client_phone || '';
+      byId(email).value = contact.client_email || '';
+      clear();
+      input.focus();
+    }
+
+    function search(query) {
       clear();
       if (query.length > 120) return;
       const requestedRevision = revision;
-      toggle.setAttribute('aria-expanded', 'true');
+      if (!query) toggle.setAttribute('aria-expanded', 'true');
       status.textContent = 'Caricamento rubrica…';
       timer = setTimeout(async () => {
         const { data, error } = await supabase.rpc('pw_posa_search_clients', { search_text: query });
@@ -71,13 +87,26 @@
         }
         status.textContent = '';
         contacts = data;
+        if (query) {
+          for (const contact of contacts) {
+            const item = document.createElement('li');
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.textContent = [contact.client_name, contact.client_phone, contact.client_email].filter(Boolean).join(' · ');
+            button.addEventListener('click', () => choose(contact));
+            item.append(button);
+            suggestions.append(item);
+          }
+          suggestions.hidden = false;
+          return;
+        }
         results.add(new Option(`Seleziona un cliente (${contacts.length})`, ''));
         contacts.forEach((contact, index) => results.add(new Option(
           [contact.client_name, contact.client_phone, contact.client_email].filter(Boolean).join(' · '),
           String(index)
         )));
         results.hidden = false;
-      }, delay);
+      }, query ? 180 : 0);
     }
 
     toggle.addEventListener('click', () => {
@@ -86,17 +115,24 @@
     });
     input.addEventListener('input', () => {
       const query = input.value.trim();
-      if (query.length >= 2) search(query, 250);
+      if (query) search(query);
       else clear();
     });
 
     results.addEventListener('change', () => {
-      if (results.value === '') return;
-      const contact = contacts[Number(results.value)];
-      input.value = contact.client_name;
-      byId(phone).value = contact.client_phone || '';
-      byId(email).value = contact.client_email || '';
-      clear();
+      if (results.value !== '') choose(contacts[Number(results.value)]);
+    });
+
+    field.addEventListener('keydown', event => {
+      if (event.key === 'ArrowDown' && event.target === input && !suggestions.hidden) {
+        event.preventDefault();
+        suggestions.querySelector('button')?.focus();
+      }
+      if (event.key === 'Escape' && (!suggestions.hidden || !results.hidden)) {
+        event.preventDefault();
+        clear();
+        input.focus();
+      }
     });
 
     input.closest('dialog')?.addEventListener('close', clear);
