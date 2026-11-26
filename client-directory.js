@@ -17,12 +17,27 @@
 
   function bind(name, phone, email) {
     const input = byId(name);
-    if (!input) return;
+    if (!input || byId(name + 'Directory')) return;
+
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'btn ghost';
+    toggle.textContent = 'Rubrica clienti';
+    toggle.setAttribute('aria-expanded', 'false');
 
     const results = document.createElement('select');
+    results.id = name + 'Directory';
     results.hidden = true;
     results.setAttribute('aria-label', 'Contatti dalla rubrica clienti');
-    input.after(results);
+    toggle.setAttribute('aria-controls', results.id);
+
+    const status = document.createElement('small');
+    status.className = 'muted';
+    status.setAttribute('role', 'status');
+    const label = input.closest('label');
+    const field = document.createElement('div');
+    label.before(field);
+    field.append(label, toggle, results, status);
 
     let timer;
     let revision = 0;
@@ -33,29 +48,46 @@
       contacts = [];
       results.hidden = true;
       results.replaceChildren();
+      status.textContent = '';
+      toggle.setAttribute('aria-expanded', 'false');
     }
 
-    input.addEventListener('input', () => {
+    function search(query, delay = 0) {
       clear();
-      const query = input.value.trim();
-      if (query.length < 2 || query.length > 120) return;
+      if (query.length > 120) return;
       const requestedRevision = revision;
+      toggle.setAttribute('aria-expanded', 'true');
+      status.textContent = 'Caricamento rubrica…';
       timer = setTimeout(async () => {
         const { data, error } = await supabase.rpc('pw_posa_search_clients', { search_text: query });
-        if (requestedRevision !== revision || input.value.trim() !== query || !input.closest('dialog')?.open) return;
+        if (requestedRevision !== revision || !input.closest('dialog')?.open) return;
         if (error) {
-          console.warn('PW Posa · Rubrica clienti', error.message);
+          status.textContent = 'Rubrica non disponibile. Riprova.';
           return;
         }
-        if (!data?.length) return;
+        if (!data?.length) {
+          status.textContent = 'Nessun cliente trovato.';
+          return;
+        }
+        status.textContent = '';
         contacts = data;
-        results.add(new Option('Seleziona dalla rubrica clienti', ''));
+        results.add(new Option(`Seleziona un cliente (${contacts.length})`, ''));
         contacts.forEach((contact, index) => results.add(new Option(
           [contact.client_name, contact.client_phone, contact.client_email].filter(Boolean).join(' · '),
           String(index)
         )));
         results.hidden = false;
-      }, 250);
+      }, delay);
+    }
+
+    toggle.addEventListener('click', () => {
+      if (toggle.getAttribute('aria-expanded') === 'true') clear();
+      else search('');
+    });
+    input.addEventListener('input', () => {
+      const query = input.value.trim();
+      if (query.length >= 2) search(query, 250);
+      else clear();
     });
 
     results.addEventListener('change', () => {
@@ -69,6 +101,7 @@
 
     input.closest('dialog')?.addEventListener('close', clear);
     input.closest('form')?.addEventListener('reset', clear);
+    document.querySelectorAll('[data-program-type]').forEach(button => button.addEventListener('click', clear));
   }
 
   window.addEventListener('load', () => {
