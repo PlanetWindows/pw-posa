@@ -21,8 +21,8 @@
     throw new Error('__validation__');
   }
   function validate(){
-    for(const [id,label] of [['assProtocol','Numero protocollo e/o ordine'],['assClient','Cliente'],['assEmail','Email cliente'],['assTeam','Squadra'],['assAddress','Indirizzo'],['assDate','Data inizio'],['assEndDate','Data fine'],['assStart','Ora inizio'],['assIssue','Problematica'],['assWarranty','Garanzia'],['assPayment','Pagamento']]) if(!val(id)) fail(id,`${label}: campo obbligatorio.`);
-    if(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val('assEmail')))fail('assEmail','Inserisci una email cliente valida.');
+    for(const [id,label] of [['assProtocol','Numero protocollo e/o ordine'],['assClient','Cliente'],['assTeam','Squadra'],['assAddress','Indirizzo'],['assDate','Data inizio'],['assEndDate','Data fine'],['assStart','Ora inizio'],['assIssue','Problematica'],['assWarranty','Garanzia'],['assPayment','Pagamento']]) if(!val(id)) fail(id,`${label}: campo obbligatorio.`);
+    if(val('assEmail') && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val('assEmail')))fail('assEmail','Inserisci una email cliente valida.');
     if(val('assPayment')==='true'&&!/^\d+(?:[.,]\d{1,2})?$/.test(val('assAmount')))fail('assAmount','Importo obbligatorio con massimo due decimali.');
     if(val('assEndDate')<val('assDate'))fail('assEndDate','La data finale non può precedere quella iniziale.');
   }
@@ -52,7 +52,7 @@
       validate();
       const {data:{session}}=await sb.auth.getSession(); if(!session)throw new Error('Sessione scaduta. Accedi di nuovo.');
       const payment=val('assPayment')==='true';
-      const payload={protocol_order:val('assProtocol'),client_name:val('assClient'),client_phone:val('assPhone')||null,client_email:val('assEmail'),team_id:val('assTeam'),address:val('assAddress'),city:val('assCity')||null,postal_code:val('assPostal')||null,scheduled_date:val('assDate'),scheduled_end_date:val('assEndDate'),start_time:val('assStart'),end_time:val('assEnd')||null,issue_description:val('assIssue'),warranty:val('assWarranty')==='true',payment_required:payment,payment_amount:payment?Number(val('assAmount').replace(',','.')):null,updated_by:session.user.id};
+      const payload={protocol_order:val('assProtocol'),client_name:val('assClient'),client_phone:val('assPhone')||null,client_email:val('assEmail')||null,team_id:val('assTeam'),address:val('assAddress'),city:val('assCity')||null,postal_code:val('assPostal')||null,scheduled_date:val('assDate'),scheduled_end_date:val('assEndDate'),start_time:val('assStart'),end_time:val('assEnd')||null,issue_description:val('assIssue'),warranty:val('assWarranty')==='true',payment_required:payment,payment_amount:payment?Number(val('assAmount').replace(',','.')):null,updated_by:session.user.id};
       let id=activeId;
       if(id){const r=await sb.from('assistances').update(payload).eq('id',id).select('id').single();if(r.error)throw r.error}
       else{payload.created_by=session.user.id;const r=await sb.from('assistances').insert(payload).select('id').single();if(r.error)throw r.error;id=r.data.id;activeId=id}

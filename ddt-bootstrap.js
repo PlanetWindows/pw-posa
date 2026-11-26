@@ -6,15 +6,15 @@
   function ensureExtras(){
     loadOnce('ddt-dedupe.js?v=20260904-ddt5','data-ddt-dedupe');
     loadOnce('ddt-archive.js?v=20260904-ddt5','data-ddt-archive-script');
-    loadOnce('ddt-email-retry.js?v=20260904-ddt5','data-ddt-email-retry');
-    loadOnce('pose-close-flow.js?v=20260929-dayrule1','data-pose-close-flow');
+    loadOnce('ddt-email-retry.js?v=20261126-client-directory','data-ddt-email-retry');
+    loadOnce('pose-close-flow.js?v=20261126-client-directory','data-pose-close-flow');
   }
   function bootDdtAfterAssistance(){
     if(document.getElementById('poseDdtBlock')){ensureExtras();return;}
     const ready=document.getElementById('normalPoseFields')&&document.getElementById('assistanceFields');
     if(!ready){setTimeout(bootDdtAfterAssistance,120);return;}
     if(!document.querySelector('script[data-ddt-late="1"]')){
-      const s=document.createElement('script');s.src='ddt.js?v=20260929-ddtreset1';s.dataset.ddtLate='1';s.onload=ensureExtras;document.body.appendChild(s);
+      const s=document.createElement('script');s.src='ddt.js?v=20261126-client-directory';s.dataset.ddtLate='1';s.onload=ensureExtras;document.body.appendChild(s);
     }else ensureExtras();
   }
   if(document.readyState==='complete')bootDdtAfterAssistance();

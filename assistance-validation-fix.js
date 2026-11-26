@@ -3,7 +3,6 @@
   const requiredFields = [
     ['assProtocol','Numero protocollo e/o ordine'],
     ['assClient','Cliente'],
-    ['assEmail','Email cliente'],
     ['assTeam','Squadra'],
     ['assAddress','Indirizzo'],
     ['assDate','Data inizio'],
@@ -65,7 +64,7 @@
       if(!el || !String(el.value||'').trim()) return fail(id,`${label}: campo obbligatorio.`);
     }
     const email=$('assEmail');
-    if(email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value.trim())) return fail('assEmail','Email cliente: inserisci un indirizzo email valido.');
+    if(email?.value.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value.trim())) return fail('assEmail','Email cliente: inserisci un indirizzo email valido.');
     if($('assPayment')?.value==='true'){
       const amount=String($('assAmount')?.value||'').trim();
       if(!/^\d+(?:[.,]\d{1,2})?$/.test(amount)) return fail('assAmount','Importo da pagare: obbligatorio e con massimo due decimali.');

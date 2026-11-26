@@ -362,7 +362,7 @@
       <div class="detail-grid">
         ${detail("Cliente",p.client_name)}
         ${detail("Telefono",p.client_phone||"—")}
-        ${detail("Indirizzo",`${p.address}${p.city ? ", "+p.city : ""}${p.postal_code ? " "+p.postal_code : ""}`)}
+        ${window.PWPoseMaps.addressCard(p)}
         ${detail("Data / Ora",`${fmtDate(p.scheduled_date)} · ${fmtTime(p.start_time)}${p.end_time ? "–"+fmtTime(p.end_time):""}`)}
         ${detail("Commessa",p.job_number)}
         ${detail("Finanziamento",p.financing ? "Sì" : "No")}

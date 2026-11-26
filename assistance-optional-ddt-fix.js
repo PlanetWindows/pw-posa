@@ -33,6 +33,7 @@
   function syncPanel(){
     const panel=document.querySelector('[data-assistance-close-flow-v4]');
     if(!panel||!noDdt(panel))return false;
+    const archiveOnly=panel.dataset.archiveOnly==='true';
 
     const mainTitle=[...panel.querySelectorAll('h4')].find(x=>(x.textContent||'').trim()==='Rapportino + DDT');
     setText(mainTitle,'Rapportino di fine assistenza');
@@ -47,13 +48,13 @@
     if(ddtMissing){
       ddtMissing.classList.remove('form-error');
       ddtMissing.classList.add('muted');
-      setText(ddtMissing,'Nessun DDT associato: verrà inviato al cliente solo il rapportino firmato.');
+      setText(ddtMissing,archiveOnly?'Il rapportino firmato sarà archiviato.':'Nessun DDT associato: verrà inviato al cliente solo il rapportino firmato.');
     }
 
     const btn=panel.querySelector('#assV4Send');
     if(btn){
       btn.disabled=false;
-      setText(btn,'INVIA RAPPORTINO');
+      setText(btn,archiveOnly?'SALVA RAPPORTINO':'INVIA RAPPORTINO');
       btn.dataset.optionalDdtReady='1';
     }
     return true;
@@ -105,11 +106,16 @@
       }});
       if(r.error||!r.data?.ok)throw Error(r.data?.error||r.error?.message||'Errore Rapportino');
 
-      if(progress)progress.textContent='2/2 · Invio Rapportino al cliente…';
-      r=await sb.functions.invoke('send-assistance-package',{body:{assistance_id:currentId}});
-      if(r.error||!r.data?.ok)throw Error(r.data?.error||r.error?.message||'Errore invio');
-
-      toast('Rapportino inviato al cliente.');
+      if(btn?.closest('[data-assistance-close-flow-v4]')?.dataset.archiveOnly==='true'){
+        r=await sb.rpc('pw_posa_complete_assistance_without_email',{assistance_uuid:currentId});
+        if(r.error||!r.data)throw Error(r.error?.message||'Chiusura assistenza non riuscita.');
+        toast('Rapportino archiviato.');
+      }else{
+        if(progress)progress.textContent='2/2 · Invio Rapportino al cliente…';
+        r=await sb.functions.invoke('send-assistance-package',{body:{assistance_id:currentId}});
+        if(r.error||!r.data?.ok)throw Error(r.data?.error||r.error?.message||'Errore invio');
+        toast('Rapportino inviato al cliente.');
+      }
       busy=false;
       $('assistanceDetailDialog')?.close();
     }catch(e){

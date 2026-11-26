@@ -1,8 +1,8 @@
-const CACHE_NAME = 'pw-posa-shell-v40-delete-pose';
+const CACHE_NAME = 'pw-posa-shell-v41-client-directory';
 const BADGE_STATE_CACHE = 'pw-posa-badge-state-v1';
 const BADGE_STATE_URL = new URL('./__pw_posa_badge_count__', self.location.href).href;
 const APP_SHELL = [
-  './', './index.html', './externals-bridge.js', './externals-bridge.css', './planner.js', './planner.css', './technician.js', './notification-inbox.js', './app.js', './manifest.webmanifest', './styles.css', './enhancements.css', './hotfix.css',
+  './', './index.html', './client-directory.js', './externals-bridge.js', './externals-bridge.css', './planner.js', './planner.css', './technician.js', './notification-inbox.js', './app.js', './manifest.webmanifest', './styles.css', './enhancements.css', './hotfix.css',
   './assistance.css', './assistance-save-archive-calendar-fix.css', './assistance.js', './assistance-installer-photos.js',
   './assistance-validation-fix.js', './assistance-team-fix.js', './assistance-close-flow-v4.js', './assistance-optional-ddt-fix.js', './calendar-assistance-render.js',
   './ddt.css', './ddt.js', './ddt-bootstrap.js', './ddt-pose-save.js', './pose-close-flow.js', './smooth-session-state.js',
@@ -14,7 +14,7 @@ self.addEventListener('activate', event => { event.waitUntil(caches.keys().then(
 self.addEventListener('fetch', event => {
   const request=event.request; if(request.method!=='GET')return; const url=new URL(request.url); if(url.origin!==self.location.origin)return; if(url.pathname.startsWith(new URL('./esterni/',self.registration.scope).pathname))return;
   if(request.mode==='navigate'){
-    event.respondWith(fetch(request,{cache:'no-store'}).then(response=>{const copy=response.clone();caches.open(CACHE_NAME).then(cache=>cache.put('./index.html',copy));return response}).catch(()=>caches.match('./index.html'))); return;
+    event.respondWith(fetch(request,{cache:'no-store'}).then(response=>{const copy=response.clone();caches.open(CACHE_NAME).then(cache=>cache.put('./index.html', './client-directory.js',copy));return response}).catch(()=>caches.match('./index.html'))); return;
   }
   if(/\.(?:js|css)$/.test(url.pathname)){
     event.respondWith(fetch(request,{cache:'no-store'}).then(response=>{if(response&&response.ok){const copy=response.clone();caches.open(CACHE_NAME).then(cache=>cache.put(request,copy))}return response}).catch(()=>caches.match(request))); return;

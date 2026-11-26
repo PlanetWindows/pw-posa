@@ -19,7 +19,7 @@
     const dates=await getPoseDates(pose.id,pose);
     const firstDay=dates[0]||pose.scheduled_date||date;
     const isFirstDay=!date||date===firstDay;
-    const pendingDdt=!!ddt&&ddt.email_status!=='sent';
+    const pendingDdt=!!ddt&&ddt.email_status!=='sent'&&!(ddt.signed_path&&!pose.client_email?.trim());
     return {date,firstDay,isFirstDay,useDdt:isFirstDay||pendingDdt};
   }
   function hideLegacyDdt(){const root=$('detailContent');if(!root)return;root.querySelectorAll('[data-ddt-card],.ddt-sign-grid').forEach(x=>{if(!x.closest('[data-pose-unified-close]'))x.style.display='none'});[...root.querySelectorAll('button')].forEach(b=>{if(b.closest('[data-pose-unified-close]'))return;const t=(b.textContent||'').replace(/\s+/g,' ').trim().toLowerCase();if(t.includes('firma ddt')||t.includes('firma documento di trasporto')||t.includes('conferma firme')||t.includes('firma e invia')){const card=b.closest('.report-card,.detail-card,.ddt-card,.ass-detail-section')||b;card.style.display='none'}});const dlg=$('ddtSignDialog');if(dlg?.open)dlg.close()}
@@ -33,18 +33,20 @@
     form.querySelectorAll('button[type="submit"]').forEach(b=>{b.type='button';b.style.display='none'});
     const mode=await getDayMode(pose,ddt);
     const sent=ddt?.email_status==='sent';
+    const archiveOnly=!pose.client_email?.trim();
+    const archived=archiveOnly&&!!ddt?.signed_path;
 
-    if(mode.isFirstDay&&sent){
+    if(mode.isFirstDay&&(sent||archived)){
       const done=document.createElement('div');
       done.dataset.poseUnifiedClose='1';
       done.className='report-card';
       done.style.marginTop='18px';
-      done.innerHTML='<div class="completion-ok"><strong>Primo giorno già chiuso: DDT già inviato al cliente.</strong></div>';
+      done.innerHTML=archived?'<div class="completion-ok"><strong>Primo giorno già chiuso: DDT archiviato.</strong></div>':'<div class="completion-ok"><strong>Primo giorno già chiuso: DDT già inviato al cliente.</strong></div>';
       form.appendChild(done);
       return;
     }
 
-    const useDdt=mode.isFirstDay?!!ddt:(!!ddt&&!sent);
+    const useDdt=mode.isFirstDay?!!ddt:(!archived&&!!ddt&&!sent);
     const box=document.createElement('div');
     box.dataset.poseUnifiedClose='1';
     box.className='report-card';
@@ -75,14 +77,14 @@
 
     box.innerHTML='<div class="eyebrow">CHIUSURA POSA</div>'
       +'<h4>'+(useDdt?'Rapportino + DDT':'Rapportino di fine giornata')+'</h4>'
-      +'<p class="muted">'+intro+'</p>'
+      +'<p class="muted">'+(archiveOnly&&useDdt?'Firma il DDT per archiviarlo insieme al rapportino.':intro)+'</p>'
       +'<div id="poseUnifiedError" class="form-error"></div>'
       +'<h4>Firma Posatore – Rapportino</h4>'
       +'<div class="signature-wrap"><canvas id="poseReportInstaller" width="900" height="300" style="touch-action:none;width:100%;background:#fff"></canvas></div>'
       +'<button type="button" class="btn ghost" id="poseReportClear">Cancella firma</button>'
       +ddtPart
       +'<button type="button" class="btn primary" id="poseUnifiedSend" style="width:100%;margin-top:24px" '+(mode.isFirstDay&&!ddt?'disabled':'')+'>'
-      +(useDdt?'SALVA RAPPORTINO E INVIA DDT':'SALVA RAPPORTINO')
+      +(useDdt?(archiveOnly?'SALVA RAPPORTINO E DDT':'SALVA RAPPORTINO E INVIA DDT'):'SALVA RAPPORTINO')
       +'</button><div id="poseUnifiedProgress" class="muted" style="margin-top:10px"></div>';
 
     form.appendChild(box);
@@ -144,12 +146,16 @@
       if(pr)pr.textContent='2/3 · Generazione DDT firmato…';
       r=await sb.functions.invoke('finalize-ddt',{body:{ddt_id:ddt.id,installer_signature_data_url:$('poseDdtInstaller').toDataURL('image/png'),client_signature_data_url:$('poseDdtClient').toDataURL('image/png')}});
       if(r.error||!r.data?.ok)throw Error('DDT: '+(r.data?.error||r.error?.message||'errore sconosciuto'));
-      if(pr)pr.textContent='3/3 · Invio DDT al cliente…';
-      r=await sb.functions.invoke('send-pose-package',{body:{pose_id:pose.id,report_id:report.id}});
-      if(r.error||!r.data?.ok)throw Error('Invio email: '+(r.data?.error||r.error?.message||'errore sconosciuto'));
-      toast('Rapportino salvato in archivio. DDT inviato al cliente.');
+      const hasEmail=!!pose.client_email?.trim();
+      if(hasEmail){
+        if(pr)pr.textContent='3/3 · Invio DDT al cliente…';
+        r=await sb.functions.invoke('send-pose-package',{body:{pose_id:pose.id,report_id:report.id}});
+        if(r.error||!r.data?.ok)throw Error('Invio email: '+(r.data?.error||r.error?.message||'errore sconosciuto'));
+      }
+      const message=hasEmail?'Rapportino archiviato e DDT inviato al cliente.':'Rapportino e DDT archiviati.';
+      toast(message);
       if(er)er.textContent='';
-      if(pr)pr.textContent='Rapportino archiviato e DDT inviato al cliente.';
+      if(pr)pr.textContent=message;
       btn.remove();
       setTimeout(()=>{const dlg=$('detailDialog');if(dlg?.open)dlg.close()},700);
     }catch(e){

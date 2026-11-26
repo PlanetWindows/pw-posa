@@ -3,7 +3,7 @@
   const sb=window.supabase.createClient(cfg.SUPABASE_URL,cfg.SUPABASE_ANON_KEY);let poseId=null,assId=null;
   const label=s=>({delivered:'Consegnata',accepted:'Accettata dal servizio email · consegna non ancora verificata',pending:'Da inviare',failed:'Invio fallito',delayed:'Consegna ritardata',sent:'Invio accettato · consegna non verificata'}[String(s||'').toLowerCase()]||String(s||'—'));
   async function enhance(){
-    const card=document.querySelector('.ddt-card[data-ddt-card]');if(!card)return;
+    const card=document.querySelector('.ddt-card[data-ddt-card]');if(!card||card.dataset.hasClientEmail==='false')return;
     const kind=assId?'assistance':'pose',id=assId||poseId;if(!id)return;
     const col=kind==='assistance'?'assistance_id':'pose_id';const r=await sb.from('ddt_documents').select('*').eq(col,id).maybeSingle();if(r.error||!r.data)return;const d=r.data;
     const st=card.querySelector('.ddt-email-status');if(st)st.innerHTML=st.innerHTML.replace(/Stato invio:\s*[^<]+$/i,`Stato invio: ${label(d.email_status)}`);
